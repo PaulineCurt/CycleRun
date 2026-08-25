@@ -1,0 +1,4 @@
+api/.env
+mobile/.env
+node_modules/
+vendor/
