@@ -11,7 +11,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-docker compose up -d db
+docker compose up -d db adminer
 
 (cd api && php artisan serve --host=0.0.0.0 --port=8000 2>&1 | sed -u 's/^/[api] /') &
 
