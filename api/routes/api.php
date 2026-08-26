@@ -1,6 +1,11 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CycleController;
+use App\Http\Controllers\CycleStatusController;
+use App\Http\Controllers\DayLogController;
+use App\Http\Controllers\ExclusionPeriodController;
+use App\Http\Controllers\ProfileController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -13,4 +18,12 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::post('/logout', [AuthController::class, 'logout']);
+
+    Route::patch('/profile', [ProfileController::class, 'update']);
+
+    Route::get('/cycle-status', CycleStatusController::class);
+
+    Route::apiResource('cycles', CycleController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('day-logs', DayLogController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('exclusion-periods', ExclusionPeriodController::class)->only(['index', 'store', 'update', 'destroy']);
 });
