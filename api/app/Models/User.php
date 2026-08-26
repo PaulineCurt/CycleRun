@@ -12,7 +12,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['name', 'email', 'password', 'typical_cycle_length', 'typical_menses_length'])]
+#[Fillable(['name', 'email', 'password', 'typical_cycle_length', 'typical_menses_length', 'birth_date'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -31,6 +31,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'typical_cycle_length' => 'integer',
             'typical_menses_length' => 'integer',
+            'birth_date' => 'date:Y-m-d',
         ];
     }
 
@@ -42,5 +43,10 @@ class User extends Authenticatable
     public function dayLogs(): HasMany
     {
         return $this->hasMany(DayLog::class);
+    }
+
+    public function exclusionPeriods(): HasMany
+    {
+        return $this->hasMany(ExclusionPeriod::class);
     }
 }
