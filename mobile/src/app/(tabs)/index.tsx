@@ -1,9 +1,21 @@
 import { useCallback, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { useFocusEffect } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { getCycleStatus, logout, type CycleStatus } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { PHASE_LABEL, PHASE_RING_CLASS } from "@/lib/phase";
+import { PHASE_LABEL } from "@/lib/phase";
+import { CycleRing } from "@/components/CycleRing";
+import { DailyFeelingCard } from "@/components/DailyFeelingCard";
+import { PhaseTip } from "@/components/PhaseTip";
+import { Card } from "@/components/ui/card";
+import { CardHeader } from "@/components/ui/card-header";
+import { PageLoader } from "@/components/ui/brand-loader";
+import { COLOR } from "@/lib/colors";
+
+const BADGE = COLOR.badge;
+const OVULATION_COLOR = COLOR.phase.ovulation;
+const DANGER = COLOR.danger;
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
@@ -52,19 +64,25 @@ export default function Home() {
     setAuthed(false);
   }
 
+  if (loading) {
+    return (
+      <View className="flex-1 bg-bg">
+        <PageLoader />
+      </View>
+    );
+  }
+
   return (
     <ScrollView className="flex-1 bg-bg" contentContainerClassName="px-6 pb-10 pt-16">
       <Text className="mb-1 text-3xl font-bold text-ink">CycleRun</Text>
       <Text className="mb-8 text-base text-ink opacity-70">Ton cycle, ton entraînement.</Text>
 
-      {loading && <ActivityIndicator color="#12302B" className="my-8" />}
-
-      {!loading && error && (
+      {error && (
         <Text className="text-danger">Impossible de charger ton statut du jour.</Text>
       )}
 
-      {!loading && !error && status?.status === "no_data" && (
-        <View className="rounded-2xl bg-surface p-4">
+      {!error && status?.status === "no_data" && (
+        <Card>
           <Text className="text-center text-base text-ink opacity-70">
             Aucune donnée pour l'instant. Va dans l'onglet Calendrier et tape sur le jour où tes
             dernières règles ont commencé pour démarrer le suivi.
@@ -73,29 +91,30 @@ export default function Home() {
             Tu connais déjà la durée habituelle de ton cycle ? Renseigne-la dans l'onglet Profil
             pour des estimations plus justes dès le départ.
           </Text>
-        </View>
+        </Card>
       )}
 
-      {!loading && !error && status?.status === "ok" && (
+      {/* Ordered, composable blocks — a future "séance du jour" (module B) slots in
+          at the top of this list without touching what's below it. */}
+      {!error && status?.status === "ok" && (
         <View className="gap-4">
-          <View className="items-center rounded-2xl bg-surface p-6">
-            {status.phase ? (
-              <>
-                <View
-                  className={`mb-3 h-4 w-4 rounded-full border-[3px] ${PHASE_RING_CLASS[status.phase]}`}
-                />
-                <Text className="text-2xl font-bold text-ink">{PHASE_LABEL[status.phase]}</Text>
-              </>
-            ) : (
-              <Text className="text-2xl font-bold text-ink">Phase incertaine</Text>
-            )}
-            <Text className="mt-1 text-sm text-ink opacity-60">Jour {status.cycle_day}</Text>
-          </View>
+          <Card className="items-center">
+            <CycleRing activePhase={status.phase}>
+              <Text className="text-lg font-bold text-ink">
+                {status.phase ? PHASE_LABEL[status.phase] : "Phase incertaine"}
+              </Text>
+              <Text className="mt-1 text-sm text-ink opacity-60">Jour {status.cycle_day}</Text>
+            </CycleRing>
 
-          <View className="items-center rounded-2xl bg-surface p-6">
-            <Text className="text-xs uppercase tracking-wide text-ink opacity-50">
-              Prochaines règles
-            </Text>
+            {status.phase && (
+              <View className="mt-4 w-full border-t border-ink/10 pt-4">
+                <PhaseTip phase={status.phase} />
+              </View>
+            )}
+          </Card>
+
+          <Card className="items-center">
+            <CardHeader icon="calendar-outline" color={BADGE} label="Prochaines règles" />
             <Text className="mt-1 text-2xl font-bold text-ink">
               {countdownLabel(daysUntil(status.predicted_next_start))}
             </Text>
@@ -104,38 +123,37 @@ export default function Home() {
               {status.next_start_range &&
                 ` (entre le ${formatDate(status.next_start_range.start)} et le ${formatDate(status.next_start_range.end)})`}
             </Text>
-          </View>
+            {status.low_confidence && (
+              <Text className="mt-2 text-center text-xs text-ink opacity-50">
+                Ça va s'affiner à mesure que tu notes tes cycles.
+              </Text>
+            )}
+          </Card>
+
+          <DailyFeelingCard />
 
           {status.predictable && (
-            <View className="rounded-2xl bg-surface p-4">
-              <Text className="mb-1 text-xs uppercase tracking-wide text-ink opacity-50">
-                Fenêtre d'ovulation
-              </Text>
-              <Text className="text-base text-ink">
+            <Card>
+              <CardHeader icon="egg-outline" color={OVULATION_COLOR} label="Fenêtre d'ovulation" />
+              <Text className="mt-1 text-sm text-ink opacity-80">
                 Du {formatDate(status.ovulation_window.start)} au{" "}
                 {formatDate(status.ovulation_window.end)}
               </Text>
-            </View>
-          )}
-
-          {status.low_confidence && (
-            <View className="rounded-2xl bg-surface p-4">
-              <Text className="text-sm text-ink opacity-80">
-                Confiance réduite : pas encore assez d'historique pour des prédictions fiables.
-              </Text>
-            </View>
+            </Card>
           )}
 
           {status.severely_overdue ? (
-            <View className="rounded-2xl bg-danger/10 p-4">
-              <Text className="text-sm text-danger">
+            <View className="flex-row items-start rounded-2xl bg-danger/10 p-4">
+              <Ionicons name="warning-outline" size={16} color={DANGER} style={{ marginTop: 1, marginRight: 8 }} />
+              <Text className="flex-1 text-sm text-danger">
                 Retard important par rapport à ton cycle habituel. Un avis médical est recommandé.
               </Text>
             </View>
           ) : (
             status.overdue && (
-              <View className="rounded-2xl bg-danger/10 p-4">
-                <Text className="text-sm text-danger">
+              <View className="flex-row items-start rounded-2xl bg-danger/10 p-4">
+                <Ionicons name="warning-outline" size={16} color={DANGER} style={{ marginTop: 1, marginRight: 8 }} />
+                <Text className="flex-1 text-sm text-danger">
                   Tes règles semblent en retard par rapport à ton cycle habituel.
                 </Text>
               </View>
