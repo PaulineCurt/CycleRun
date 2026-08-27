@@ -39,7 +39,13 @@ export default function Register() {
         name,
         email,
         password,
-        birthDate: birthYear === null ? null : `${birthYear}-01-01`,
+        // Only the year is asked (see YearList below), so this is a proxy date, not
+        // a real birthday. Jan 1st would systematically overestimate age for
+        // everyone born later in the year — diffInYears() counts a full extra year
+        // until their real birthday passes — pushing users into the stricter FIGO
+        // age bracket too early. Mid-year keeps the average error near zero instead
+        // of biased in one direction.
+        birthDate: birthYear === null ? null : `${birthYear}-07-01`,
         termsAccepted,
         privacyAccepted,
         dataUsageAccepted,
