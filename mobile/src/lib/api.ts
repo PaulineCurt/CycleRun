@@ -30,7 +30,14 @@ async function authHeader(): Promise<Record<string, string>> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+// TEMP debug aid: set EXPO_PUBLIC_DEBUG_SLOW_API_MS in .env to artificially delay
+// every API call — makes loading states (spinners, SaveToast, ...) visible for
+// testing on a real device instead of firing too fast to see. Remove before shipping.
+const DEBUG_SLOW_MS = Number(process.env.EXPO_PUBLIC_DEBUG_SLOW_API_MS ?? 0);
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  if (DEBUG_SLOW_MS > 0) await new Promise((resolve) => setTimeout(resolve, DEBUG_SLOW_MS));
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
@@ -196,4 +203,57 @@ export type CycleAnalysis = {
 
 export async function getCycleAnalysis() {
   return api<CycleAnalysis>("/cycle-analysis");
+}
+
+export type Flow = "spotting" | "light" | "medium" | "heavy";
+
+/** Symptom key -> intensity felt that day (0 = asked and none, 1-3 = intensity). */
+export type SymptomMap = Record<string, number>;
+
+export type DayLog = {
+  id: number;
+  date: string;
+  flow: Flow | null;
+  pain: number | null;
+  energy: number | null;
+  symptoms: SymptomMap | null;
+  note: string | null;
+};
+
+export async function getDayLog(date: string) {
+  const logs = await api<DayLog[]>(`/day-logs?date=${date}`);
+  return logs[0] ?? null;
+}
+
+/** Creates the log for a date if none exists yet, otherwise patches the existing one. */
+export async function upsertDayLog(
+  date: string,
+  data: { flow?: Flow | null; pain?: number | null; energy?: number | null; symptoms?: SymptomMap },
+) {
+  const existing = await getDayLog(date);
+  if (existing === null) {
+    try {
+      return await api<DayLog>("/day-logs", {
+        method: "POST",
+        body: JSON.stringify({ date, ...data }),
+      });
+    } catch (error) {
+      // Two near-simultaneous saves for the same date (e.g. the Home tab's daily
+      // feeling card and the calendar's feeling sheet both open) can both see "no
+      // existing log" above and both attempt a create — the day_logs unique
+      // (user_id, date) constraint then rejects the second. Rather than surface
+      // that as a generic save failure, refetch: if a log now exists (the other
+      // save won the race), patch it instead of losing this one's changes.
+      const createdByRace = await getDayLog(date);
+      if (createdByRace === null) throw error;
+      return api<DayLog>(`/day-logs/${createdByRace.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      });
+    }
+  }
+  return api<DayLog>(`/day-logs/${existing.id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
 }
