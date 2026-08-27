@@ -7,14 +7,14 @@ import { DatePickerCalendar } from "@/components/DatePickerCalendar";
 import { ChoiceStep, ConfirmStep, WizardProgress } from "@/components/WizardStep";
 
 type Frequency = "regular" | "irregular" | "unknown";
-const STEPS = ["frequency", "last_period", "menses_length"] as const;
+const STEPS = ["frequency", "last_period", "menses_length", "cycle_length"] as const;
 type Step = (typeof STEPS)[number];
 
 const REASSURANCE: Record<Frequency, string> = {
   regular: "",
   irregular:
     "Pas de souci — les prédictions s'adapteront et resteront honnêtes sur leur marge d'erreur.",
-  unknown: "Pas de souci, on apprendra au fur et à mesure de tes cycles logués.",
+  unknown: "Pas de souci, on apprendra au fur et à mesure de tes cycles enregistrés.",
 };
 
 export default function Onboarding() {
@@ -31,6 +31,10 @@ export default function Onboarding() {
   const [mensesLength, setMensesLength] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  const [cycleLength, setCycleLength] = useState("");
+  const [savingCycleLength, setSavingCycleLength] = useState(false);
+  const [cycleLengthError, setCycleLengthError] = useState<string | null>(null);
 
   function finish() {
     router.replace("/");
@@ -60,12 +64,12 @@ export default function Onboarding() {
     }
   }
 
-  async function handleFinish() {
+  async function handleMensesContinue() {
     setSaveError(null);
     const trimmed = mensesLength.trim();
 
     if (trimmed === "") {
-      finish();
+      setStep("cycle_length");
       return;
     }
 
@@ -78,11 +82,37 @@ export default function Onboarding() {
     setSaving(true);
     try {
       await updateProfile({ typical_menses_length: parsed });
-      finish();
+      setStep("cycle_length");
     } catch {
       setSaveError("Impossible d'enregistrer. Réessaie, ou passe cette étape.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleFinish() {
+    setCycleLengthError(null);
+    const trimmed = cycleLength.trim();
+
+    if (trimmed === "") {
+      finish();
+      return;
+    }
+
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setCycleLengthError("Entre un nombre de jours valide, ou laisse le champ vide.");
+      return;
+    }
+
+    setSavingCycleLength(true);
+    try {
+      await updateProfile({ typical_cycle_length: parsed });
+      finish();
+    } catch {
+      setCycleLengthError("Impossible d'enregistrer. Réessaie, ou passe cette étape.");
+    } finally {
+      setSavingCycleLength(false);
     }
   }
 
@@ -150,10 +180,10 @@ export default function Onboarding() {
         {step === "menses_length" && (
           <ConfirmStep
             title="Combien de jours durent tes règles d'habitude ?"
-            description="Laisse vide si tu ne sais pas — on le calculera à partir de tes cycles logués."
-            primaryLabel={saving ? "..." : "Terminer"}
+            description="Laisse vide si tu ne sais pas — on le calculera à partir de tes cycles enregistrés."
+            primaryLabel={saving ? "..." : "Continuer"}
             primaryDisabled={saving}
-            onPrimary={handleFinish}
+            onPrimary={handleMensesContinue}
           >
             <TextInput
               value={mensesLength}
@@ -164,6 +194,26 @@ export default function Onboarding() {
               className="rounded-lg bg-ink/6 px-4 py-3 text-ink"
             />
             {saveError && <Text className="mt-2 text-danger">{saveError}</Text>}
+          </ConfirmStep>
+        )}
+
+        {step === "cycle_length" && (
+          <ConfirmStep
+            title="Et combien de jours dure ton cycle d'habitude ?"
+            description="Du début d'une règle au début des suivantes. Laisse vide si tu ne sais pas — on le calculera dès que tu auras enregistré au moins deux débuts de règles."
+            primaryLabel={savingCycleLength ? "..." : "Terminer"}
+            primaryDisabled={savingCycleLength}
+            onPrimary={handleFinish}
+          >
+            <TextInput
+              value={cycleLength}
+              onChangeText={setCycleLength}
+              placeholder="Ex. 28"
+              placeholderTextColor="#12302B73"
+              keyboardType="number-pad"
+              className="rounded-lg bg-ink/6 px-4 py-3 text-ink"
+            />
+            {cycleLengthError && <Text className="mt-2 text-danger">{cycleLengthError}</Text>}
           </ConfirmStep>
         )}
       </View>
