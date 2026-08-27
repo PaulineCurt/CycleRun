@@ -5,14 +5,16 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        craie: "#FBF5EC",
-        prune: "#201325",
-        corail: "#FF4632",
+        bg: "#F5FBFA",
+        surface: "#FFFFFF",
+        ink: "#12302B",
+        accent: "#16B88A",
+        danger: "#C4292E",
         phase: {
-          menstruelle: "#E41A63",
-          folliculaire: "#FF5A2C",
-          ovulation: "#FFA81C",
-          luteale: "#8B3DE8",
+          menstrual: "#FF5D8F",
+          follicular: "#FF9F1C",
+          ovulation: "#2EC4B6",
+          luteal: "#6A4C93",
         },
       },
     },
