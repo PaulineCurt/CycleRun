@@ -1,7 +1,16 @@
-import { useCallback, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { useCallback, useRef, useState } from "react";
+import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { getProfile, updateProfile, type Profile as ProfileData } from "@/lib/api";
+import { OverridePredictionCard } from "@/components/OverridePredictionCard";
+import { Card } from "@/components/ui/card";
+import { CardHeader } from "@/components/ui/card-header";
+import { Avatar } from "@/components/ui/avatar";
+import { AvatarPickerSheet } from "@/components/AvatarPickerSheet";
+import { SaveToast, type SaveToastHandle } from "@/components/ui/save-toast";
+import { PageLoader } from "@/components/ui/brand-loader";
+import { COLOR } from "@/lib/colors";
 
 function formatDays(value: number) {
   return `${value} jour${value > 1 ? "s" : ""}`;
@@ -15,8 +24,9 @@ export default function Profile() {
   const [cycleLength, setCycleLength] = useState("");
   const [mensesLength, setMensesLength] = useState("");
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
+  const saveToastRef = useRef<SaveToastHandle>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -42,11 +52,10 @@ export default function Profile() {
   async function handleSave() {
     if (!profile) return;
     setSaveError(null);
-    setSaved(false);
 
     const payload: Parameters<typeof updateProfile>[0] = {};
 
-    if (!profile.cycle_length_measured) {
+    if (!cycleLocked) {
       const parsedCycle = parseField(cycleLength);
       if (Number.isNaN(parsedCycle)) {
         setSaveError("Entre un nombre de jours valide, ou laisse le champ vide.");
@@ -55,7 +64,7 @@ export default function Profile() {
       payload.typical_cycle_length = parsedCycle;
     }
 
-    if (!profile.menses_length_measured) {
+    if (!mensesLocked) {
       const parsedMenses = parseField(mensesLength);
       if (Number.isNaN(parsedMenses)) {
         setSaveError("Entre un nombre de jours valide, ou laisse le champ vide.");
@@ -65,44 +74,68 @@ export default function Profile() {
     }
 
     setSaving(true);
+    saveToastRef.current?.showSaving();
     try {
       await updateProfile(payload);
       setProfile(await getProfile());
-      setSaved(true);
+      saveToastRef.current?.showSuccess();
     } catch {
       setSaveError("Impossible d'enregistrer. Réessaie dans un instant.");
+      saveToastRef.current?.showError();
     } finally {
       setSaving(false);
     }
   }
 
-  const bothLocked = profile?.cycle_length_measured && profile?.menses_length_measured;
+  // A declared value locks the field immediately, not just once it's measured — it
+  // was answered once (at registration or here), so it's treated as settled rather
+  // than asked again every time the profile is opened. Changing it afterwards goes
+  // through "Régler les prédictions" (a deliberate override, with confirmation),
+  // not a plain always-open text field.
+  const cycleLocked = Boolean(profile?.cycle_length_measured || profile?.typical_cycle_length != null);
+  const mensesLocked = Boolean(profile?.menses_length_measured || profile?.typical_menses_length != null);
+  const bothLocked = cycleLocked && mensesLocked;
+
+  if (loading) {
+    return (
+      <View className="flex-1 bg-bg">
+        <PageLoader />
+      </View>
+    );
+  }
 
   return (
     <ScrollView className="flex-1 bg-bg" contentContainerClassName="px-6 pb-10 pt-16">
-      <Text className="mb-1 text-3xl font-bold text-ink">Profil</Text>
-      <Text className="mb-4 text-base text-ink opacity-70">Tes habitudes de cycle.</Text>
+      {profile && (
+        <View className="mb-6 flex-row items-center">
+          <Pressable onPress={() => setAvatarPickerOpen(true)} accessibilityRole="button">
+            <View>
+              <Avatar name={profile.name} avatarId={profile.avatar} />
+              <View
+                className="absolute -bottom-1 -right-1 h-6 w-6 items-center justify-center rounded-full bg-surface"
+                style={{ borderWidth: 1.5, borderColor: COLOR.accent }}
+              >
+                <Ionicons name="pencil" size={11} color={COLOR.accent} />
+              </View>
+            </View>
+          </Pressable>
+          <View className="ml-4">
+            <Text className="text-2xl font-bold text-ink">{profile.name}</Text>
+            <Text className="text-sm text-ink opacity-60">Tes habitudes de cycle.</Text>
+          </View>
+        </View>
+      )}
 
-      <View className="mb-6 rounded-2xl bg-surface p-4">
-        <Text className="text-sm text-ink opacity-80">
-          {bothLocked
-            ? "Ces durées sont désormais calculées à partir de tes cycles logués — plus besoin de les saisir toi-même."
-            : "Renseigne la durée habituelle de ton cycle et de tes règles pour des estimations fiables dès le départ. Si tu ne les connais pas, laisse vide : elles seront calculées automatiquement une fois que tu auras logué quelques cycles."}
-        </Text>
-      </View>
-
-      {loading && <ActivityIndicator color="#12302B" className="my-8" />}
-
-      {!loading && error && (
+      {error && (
         <Text className="text-danger">Impossible de charger ton profil.</Text>
       )}
 
-      {!loading && !error && profile && (
+      {!error && profile && (
         <View className="gap-4">
-          <View className="rounded-2xl bg-surface p-4">
-            <Text className="mb-2 text-sm font-semibold text-ink">
-              Durée habituelle du cycle
-            </Text>
+          <Card>
+            <View className="mb-2">
+              <CardHeader icon="refresh-outline" color={COLOR.accent} label="Durée habituelle du cycle" />
+            </View>
             {profile.cycle_length_measured ? (
               <>
                 <Text className="text-xl font-bold text-ink">
@@ -113,11 +146,21 @@ export default function Profile() {
                   calendrier plutôt qu'ici.
                 </Text>
               </>
+            ) : cycleLocked ? (
+              <>
+                <Text className="text-xl font-bold text-ink">
+                  {formatDays(profile.typical_cycle_length!)}
+                </Text>
+                <Text className="mt-1 text-xs text-ink opacity-60">
+                  Valeur que tu as renseignée — modifie-la depuis "Régler les prédictions"
+                  ci-dessous.
+                </Text>
+              </>
             ) : (
               <>
                 <Text className="mb-3 text-xs text-ink opacity-60">
                   En jours, entre le début de deux règles. Laisse vide si tu ne sais pas encore —
-                  on se basera sur tes cycles au fur et à mesure que tu les logues.
+                  on se basera sur tes cycles au fur et à mesure que tu les enregistres.
                 </Text>
                 <TextInput
                   value={cycleLength}
@@ -129,12 +172,12 @@ export default function Profile() {
                 />
               </>
             )}
-          </View>
+          </Card>
 
-          <View className="rounded-2xl bg-surface p-4">
-            <Text className="mb-2 text-sm font-semibold text-ink">
-              Durée habituelle des règles
-            </Text>
+          <Card>
+            <View className="mb-2">
+              <CardHeader icon="water-outline" color={COLOR.phase.menstrual} label="Durée habituelle des règles" />
+            </View>
             {profile.menses_length_measured ? (
               <>
                 <Text className="text-xl font-bold text-ink">
@@ -143,6 +186,16 @@ export default function Profile() {
                 <Text className="mt-1 text-xs text-ink opacity-60">
                   Calculé à partir de tes cycles — modifie-le en corrigeant tes dates dans le
                   calendrier plutôt qu'ici.
+                </Text>
+              </>
+            ) : mensesLocked ? (
+              <>
+                <Text className="text-xl font-bold text-ink">
+                  {formatDays(profile.typical_menses_length!)}
+                </Text>
+                <Text className="mt-1 text-xs text-ink opacity-60">
+                  Valeur que tu as renseignée — modifie-la depuis "Régler les prédictions"
+                  ci-dessous.
                 </Text>
               </>
             ) : (
@@ -160,10 +213,9 @@ export default function Profile() {
                 />
               </>
             )}
-          </View>
+          </Card>
 
           {saveError && <Text className="text-danger">{saveError}</Text>}
-          {saved && !saveError && <Text className="text-ink opacity-70">Enregistré.</Text>}
 
           {!bothLocked && (
             <Pressable
@@ -176,15 +228,26 @@ export default function Profile() {
             </Pressable>
           )}
 
-          <Pressable
-            onPress={() => router.push("/analysis")}
-            className="h-11 items-center justify-center rounded-lg bg-ink/6"
-            accessibilityRole="button"
-          >
-            <Text className="font-semibold text-ink">Voir l'analyse de mon cycle</Text>
+          <OverridePredictionCard profile={profile} />
+
+          <Pressable onPress={() => router.push("/analysis")} accessibilityRole="button">
+            <Card className="flex-row items-center justify-between">
+              <CardHeader icon="analytics-outline" color={COLOR.phase.ovulation} label="Analyse du cycle" />
+              <Ionicons name="chevron-forward" size={18} color="#12302B" style={{ opacity: 0.4 }} />
+            </Card>
           </Pressable>
         </View>
       )}
+
+      {avatarPickerOpen && profile && (
+        <AvatarPickerSheet
+          currentAvatar={profile.avatar}
+          onClose={() => setAvatarPickerOpen(false)}
+          onSaved={setProfile}
+        />
+      )}
+
+      <SaveToast ref={saveToastRef} />
     </ScrollView>
   );
 }

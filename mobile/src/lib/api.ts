@@ -157,6 +157,7 @@ export type Profile = {
   id: number;
   name: string;
   email: string;
+  avatar: string | null;
   typical_cycle_length: number | null;
   typical_menses_length: number | null;
   birth_date: string | null;
@@ -164,6 +165,10 @@ export type Profile = {
   cycle_length_average: number;
   menses_length_measured: boolean;
   menses_length_average: number;
+  // Manual overrides — take priority over the computed/declared average everywhere
+  // predictions are shown, regardless of `*_measured`. Set only by the user.
+  cycle_length_override: number | null;
+  menses_length_override: number | null;
 };
 
 export async function getProfile() {
@@ -171,8 +176,11 @@ export async function getProfile() {
 }
 
 export async function updateProfile(data: {
+  avatar?: string | null;
   typical_cycle_length?: number | null;
   typical_menses_length?: number | null;
+  cycle_length_override?: number | null;
+  menses_length_override?: number | null;
 }) {
   return api<Profile>("/profile", {
     method: "PATCH",
