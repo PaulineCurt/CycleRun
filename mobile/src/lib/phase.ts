@@ -1,5 +1,8 @@
 import type { Phase } from "@/lib/api";
 
+/** Canonical phase order — matches the calendar/legend everywhere in the app. */
+export const PHASE_ORDER: Phase[] = ["menstrual", "follicular", "ovulation", "luteal"];
+
 export const PHASE_LABEL: Record<Phase, string> = {
   menstrual: "Menstruelle",
   follicular: "Folliculaire",

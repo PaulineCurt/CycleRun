@@ -8,7 +8,7 @@ module.exports = {
         bg: "#F5FBFA",
         surface: "#FFFFFF",
         ink: "#12302B",
-        accent: "#FF6355",
+        accent: "#16B88A",
         danger: "#C4292E",
         phase: {
           menstrual: "#FF5D8F",
