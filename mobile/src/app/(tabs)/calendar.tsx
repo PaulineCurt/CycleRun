@@ -1,11 +1,13 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { useFocusEffect } from "expo-router";
-import { getCycleCalendar, type CalendarDay } from "@/lib/api";
+import { getCycleCalendar, getDayLog, type CalendarDay, type DayLog } from "@/lib/api";
 import { toDateKey } from "@/lib/calendar";
 import { PHASE_LABEL, PHASE_RING_CLASS } from "@/lib/phase";
 import { CycleCalendarView } from "@/components/CycleCalendarView";
 import { DayActionModal } from "@/components/DayActionModal";
+import { DayLogSummary } from "@/components/DayLogSummary";
+import { PageLoader } from "@/components/ui/brand-loader";
 
 const MONTH_LABEL_FORMAT = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
 
@@ -23,11 +25,21 @@ export default function CalendarScreen() {
   const [calendarError, setCalendarError] = useState(false);
   const calendarCache = useRef(new Map<string, CalendarDay[]>());
 
-  // The selected date stays put across a modal open/close/save so the info panel below the
-  // calendar keeps showing the tapped day (and refreshes once new data comes in) — only the
-  // modal's own visibility is transient.
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  // Defaults to today (and resets to today on every focus, see below) so the info
+  // panel — cycle day + today's logged symptoms — is visible immediately on landing,
+  // with no tap required. It otherwise stays put across a modal open/close/save so
+  // the panel keeps showing whatever day was tapped (and refreshes once new data
+  // comes in) — only the modal's own visibility is transient.
+  const [selectedDate, setSelectedDate] = useState<Date | null>(today);
   const [modalVisible, setModalVisible] = useState(false);
+
+  const [dayLog, setDayLog] = useState<DayLog | null>(null);
+  const [dayLogLoading, setDayLogLoading] = useState(true);
+  // Flips true after the first day-log fetch settles (independently of whether that
+  // day actually has a log) — used only to gate the initial full-page loader below,
+  // so it waits for the calendar AND the day panel together instead of one popping
+  // in a beat after the other.
+  const [dayLogReady, setDayLogReady] = useState(false);
 
   const selectedDayInfo = useMemo(() => {
     if (!selectedDate) return undefined;
@@ -55,17 +67,44 @@ export default function CalendarScreen() {
       .finally(() => setCalendarLoading(false));
   }, []);
 
+  // Guards against out-of-order responses: if the user taps another day before this
+  // one's request resolves, a late response for the earlier day must not overwrite
+  // what's now on screen for the day actually selected.
+  const dayLogRequestKey = useRef<string | null>(null);
+
+  const loadDayLog = useCallback((dateKey: string) => {
+    dayLogRequestKey.current = dateKey;
+    setDayLogLoading(true);
+    getDayLog(dateKey)
+      .then((data) => {
+        if (dayLogRequestKey.current === dateKey) setDayLog(data);
+      })
+      .catch(() => {
+        if (dayLogRequestKey.current === dateKey) setDayLog(null);
+      })
+      .finally(() => {
+        if (dayLogRequestKey.current !== dateKey) return;
+        setDayLogLoading(false);
+        setDayLogReady(true);
+      });
+  }, []);
+
   // Coming back to this tab always jumps back to the current month — browsing to a past
   // or future month is a one-visit detour, not a preference the tab should remember.
   // The cache itself is only invalidated after an actual edit (see handleDaySaved), so a
   // plain tab switch reuses what's already loaded instead of refetching every time.
+  // The day-log refetches here too (not just on date change) — a symptom logged from
+  // the Home tab (always "today") wouldn't otherwise show up until the selected date
+  // changed and changed back, since this screen's state stays mounted across tabs.
   useFocusEffect(
     useCallback(() => {
       const now = new Date();
       setViewedYear(now.getFullYear());
       setViewedMonth(now.getMonth());
+      setSelectedDate(now);
       loadCalendar(now.getFullYear(), now.getMonth());
-    }, [loadCalendar]),
+      loadDayLog(toDateKey(now));
+    }, [loadCalendar, loadDayLog]),
   );
 
   function goToPreviousMonth() {
@@ -84,10 +123,12 @@ export default function CalendarScreen() {
 
   function handleDayPress(date: Date) {
     setSelectedDate(date);
+    loadDayLog(toDateKey(date));
   }
 
   function handleDayDoubleTap(date: Date) {
     setSelectedDate(date);
+    loadDayLog(toDateKey(date));
     setModalVisible(true);
   }
 
@@ -100,6 +141,18 @@ export default function CalendarScreen() {
   const selectedDateLabel = selectedDate
     ? selectedDate.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })
     : null;
+
+  // Only the very first load (nothing cached yet at all, and the day panel hasn't
+  // resolved once either) blanks the whole page — switching months or days
+  // afterwards just updates their own section in place, it shouldn't hide the
+  // title/nav/hint text that are already known-good.
+  if ((calendarLoading && calendarDays.length === 0) || !dayLogReady) {
+    return (
+      <View className="flex-1 bg-bg">
+        <PageLoader />
+      </View>
+    );
+  }
 
   return (
     <ScrollView className="flex-1 bg-bg" contentContainerClassName="px-6 pb-10 pt-16">
@@ -129,19 +182,15 @@ export default function CalendarScreen() {
         </Pressable>
       </View>
 
-      {calendarLoading && calendarDays.length === 0 ? (
-        <ActivityIndicator color="#12302B" className="my-8" />
-      ) : (
-        <View style={{ opacity: calendarLoading ? 0.5 : 1 }}>
-          <CycleCalendarView
-            year={viewedYear}
-            month={viewedMonth}
-            days={calendarDays}
-            onPressDay={(date) => handleDayPress(date)}
-            onDoubleTapDay={(date) => handleDayDoubleTap(date)}
-          />
-        </View>
-      )}
+      <View style={{ opacity: calendarLoading ? 0.5 : 1 }}>
+        <CycleCalendarView
+          year={viewedYear}
+          month={viewedMonth}
+          days={calendarDays}
+          onPressDay={(date) => handleDayPress(date)}
+          onDoubleTapDay={(date) => handleDayDoubleTap(date)}
+        />
+      </View>
 
       {calendarError && <Text className="mt-4 text-danger">Impossible de charger ce mois.</Text>}
 
@@ -150,7 +199,7 @@ export default function CalendarScreen() {
       </Text>
 
       {selectedDate && (
-        <View className="mt-6 rounded-2xl bg-surface p-4">
+        <View className="mt-6 rounded-2xl bg-surface p-4" style={{ opacity: dayLogLoading ? 0.5 : 1 }}>
           <Text className="mb-1 text-sm font-semibold capitalize text-ink">
             {selectedDateLabel}
           </Text>
@@ -171,6 +220,7 @@ export default function CalendarScreen() {
               Aucune donnée de cycle pour ce jour.
             </Text>
           )}
+          <DayLogSummary log={dayLog} />
         </View>
       )}
 
