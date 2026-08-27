@@ -11,7 +11,14 @@ class DayLogController extends Controller
 {
     public function index(Request $request)
     {
-        return $request->user()->dayLogs()->orderBy('date')->get();
+        $data = $request->validate([
+            'date' => ['sometimes', 'date'],
+        ]);
+
+        return $request->user()->dayLogs()
+            ->when(isset($data['date']), fn ($query) => $query->whereDate('date', $data['date']))
+            ->orderBy('date')
+            ->get();
     }
 
     public function store(Request $request)
@@ -25,8 +32,9 @@ class DayLogController extends Controller
             'flow' => ['nullable', Rule::enum(Flow::class)],
             'pain' => ['nullable', 'integer', 'between:0,3'],
             'energy' => ['nullable', 'integer', 'between:1,5'],
+            // Map of symptom key => intensity (0 = asked and none, 1-3 = intensity felt).
             'symptoms' => ['nullable', 'array'],
-            'symptoms.*' => ['string'],
+            'symptoms.*' => ['integer', 'between:0,3'],
             'note' => ['nullable', 'string'],
         ]);
 
@@ -48,10 +56,18 @@ class DayLogController extends Controller
             'flow' => ['nullable', Rule::enum(Flow::class)],
             'pain' => ['nullable', 'integer', 'between:0,3'],
             'energy' => ['nullable', 'integer', 'between:1,5'],
+            // Map of symptom key => intensity (0 = asked and none, 1-3 = intensity felt).
             'symptoms' => ['nullable', 'array'],
-            'symptoms.*' => ['string'],
+            'symptoms.*' => ['integer', 'between:0,3'],
             'note' => ['nullable', 'string'],
         ]);
+
+        // Merge rather than replace: the client sends one changed symptom key at a
+        // time (or a partial map), and a wholesale replace would race against other
+        // in-flight taps and silently wipe out symptoms logged moments earlier.
+        if (array_key_exists('symptoms', $data)) {
+            $data['symptoms'] = array_merge($dayLog->symptoms ?? [], $data['symptoms']);
+        }
 
         $dayLog->update($data);
 
