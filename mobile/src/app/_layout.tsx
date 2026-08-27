@@ -11,7 +11,10 @@ function Gate() {
   useEffect(() => {
     if (!ready) return;
     const onLogin = segments[0] === "login";
-    if (!authed && !onLogin) router.replace("/login");
+    const onRegister = segments[0] === "register";
+    if (!authed && !onLogin && !onRegister) router.replace("/login");
+    // Only /login auto-redirects once authed — /register drives its own post-signup
+    // navigation (to /onboarding), so forcing "/" here would race with that.
     if (authed && onLogin) router.replace("/");
   }, [ready, authed, segments]);
 
