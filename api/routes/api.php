@@ -8,6 +8,8 @@ use App\Http\Controllers\CycleStatusController;
 use App\Http\Controllers\DayLogController;
 use App\Http\Controllers\ExclusionPeriodController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ProgramController;
+use App\Http\Controllers\TrainingSessionController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -31,4 +33,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('cycles', CycleController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('day-logs', DayLogController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('exclusion-periods', ExclusionPeriodController::class)->only(['index', 'store', 'update', 'destroy']);
+
+    // Moteur B — training programs
+    Route::apiResource('programs', ProgramController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
+    Route::apiResource('training-sessions', TrainingSessionController::class)->only(['index', 'show', 'update']);
 });
