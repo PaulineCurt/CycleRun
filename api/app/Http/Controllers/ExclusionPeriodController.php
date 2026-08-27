@@ -34,7 +34,19 @@ class ExclusionPeriodController extends Controller
         $data = $request->validate([
             'type' => ['sometimes', Rule::enum(ExclusionType::class)],
             'started_on' => ['sometimes', 'date'],
-            'ended_on' => ['nullable', 'date'],
+            // Closure rather than after_or_equal:started_on: `started_on` is only
+            // `sometimes` present here, and the built-in date rule mishandles a
+            // reference field that's missing from this request's input (it isn't
+            // read from the existing model) — compare against whichever is current.
+            'ended_on' => ['nullable', 'date', function ($attribute, $value, $fail) use ($request, $exclusionPeriod) {
+                if ($value === null) {
+                    return;
+                }
+                $startedOn = $request->input('started_on', $exclusionPeriod->started_on->toDateString());
+                if ($value < $startedOn) {
+                    $fail('La fin doit être à partir du début de la période.');
+                }
+            }],
         ]);
 
         $exclusionPeriod->update($data);

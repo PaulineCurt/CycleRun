@@ -59,6 +59,15 @@ class CycleApiTest extends TestCase
             ->assertJsonPath('menses_ended_on', '2026-01-05');
     }
 
+    public function test_updating_menses_ended_on_before_started_on_is_rejected(): void
+    {
+        Sanctum::actingAs($user = User::factory()->create());
+        $cycle = Cycle::create(['user_id' => $user->id, 'started_on' => '2026-01-10']);
+
+        $this->patchJson("/api/cycles/{$cycle->id}", ['menses_ended_on' => '2026-01-05'])
+            ->assertUnprocessable();
+    }
+
     public function test_a_user_can_delete_their_own_cycle(): void
     {
         Sanctum::actingAs($user = User::factory()->create());
