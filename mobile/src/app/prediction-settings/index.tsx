@@ -1,10 +1,11 @@
 import { useCallback, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { getProfile, type Profile } from "@/lib/api";
 import { CardHeader } from "@/components/ui/card-header";
 import { PageLoader } from "@/components/ui/brand-loader";
+import { Screen } from "@/components/ui/screen";
 import { COLOR } from "@/lib/colors";
 
 export const FIELD_CONFIG = {
@@ -45,7 +46,7 @@ export default function PredictionSettings() {
   );
 
   return (
-    <ScrollView className="flex-1 bg-bg" contentContainerClassName="px-6 pb-10 pt-16">
+    <Screen className="flex-1 bg-bg" contentContainerClassName="px-6 pb-10 pt-16">
       <Pressable onPress={() => router.back()} className="mb-4 h-11 justify-center">
         <Text className="text-ink opacity-70">‹ Retour</Text>
       </Pressable>
@@ -94,6 +95,6 @@ export default function PredictionSettings() {
           })}
         </View>
       )}
-    </ScrollView>
+    </Screen>
   );
 }

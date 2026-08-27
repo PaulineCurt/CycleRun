@@ -1,10 +1,11 @@
 import { useCallback, useRef, useState } from "react";
-import { Alert, Pressable, ScrollView, Text, TextInput } from "react-native";
+import { Alert, Pressable, Text, TextInput } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { getProfile, updateProfile, type Profile } from "@/lib/api";
 import { CardHeader } from "@/components/ui/card-header";
 import { SaveToast, type SaveToastHandle } from "@/components/ui/save-toast";
 import { PageLoader } from "@/components/ui/brand-loader";
+import { Screen } from "@/components/ui/screen";
 import { FIELD_CONFIG, type PredictionField } from "./index";
 
 /**
@@ -80,7 +81,7 @@ export default function EditPredictionField() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-bg" contentContainerClassName="px-6 pb-10 pt-16">
+    <Screen className="flex-1 bg-bg" contentContainerClassName="px-6 pb-10 pt-16">
       <Pressable onPress={() => router.back()} className="mb-4 h-11 justify-center">
         <Text className="text-ink opacity-70">‹ Retour</Text>
       </Pressable>
@@ -122,6 +123,6 @@ export default function EditPredictionField() {
       )}
 
       <SaveToast ref={saveToastRef} />
-    </ScrollView>
+    </Screen>
   );
 }

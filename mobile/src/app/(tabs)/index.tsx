@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { getCycleStatus, logout, type CycleStatus } from "@/lib/api";
@@ -11,6 +11,7 @@ import { PhaseTip } from "@/components/PhaseTip";
 import { Card } from "@/components/ui/card";
 import { CardHeader } from "@/components/ui/card-header";
 import { PageLoader } from "@/components/ui/brand-loader";
+import { Screen } from "@/components/ui/screen";
 import { COLOR } from "@/lib/colors";
 
 const BADGE = COLOR.badge;
@@ -73,7 +74,7 @@ export default function Home() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-bg" contentContainerClassName="px-6 pb-10 pt-16">
+    <Screen className="flex-1 bg-bg" contentContainerClassName="px-6 pb-10 pt-16">
       <Text className="mb-1 text-3xl font-bold text-ink">CycleRun</Text>
       <Text className="mb-8 text-base text-ink opacity-70">Ton cycle, ton entraînement.</Text>
 
@@ -169,6 +170,6 @@ export default function Home() {
       >
         <Text className="text-center text-ink opacity-70">Déconnexion</Text>
       </Pressable>
-    </ScrollView>
+    </Screen>
   );
 }

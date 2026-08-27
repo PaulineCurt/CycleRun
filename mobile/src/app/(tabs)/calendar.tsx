@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { getCycleCalendar, getDayLog, type CalendarDay, type DayLog } from "@/lib/api";
 import { toDateKey } from "@/lib/calendar";
@@ -8,6 +8,7 @@ import { CycleCalendarView } from "@/components/CycleCalendarView";
 import { DayActionModal } from "@/components/DayActionModal";
 import { DayLogSummary } from "@/components/DayLogSummary";
 import { PageLoader } from "@/components/ui/brand-loader";
+import { Screen } from "@/components/ui/screen";
 
 const MONTH_LABEL_FORMAT = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
 
@@ -155,7 +156,7 @@ export default function CalendarScreen() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-bg" contentContainerClassName="px-6 pb-10 pt-16">
+    <Screen className="flex-1 bg-bg" contentContainerClassName="px-6 pb-10 pt-16">
       <Text className="mb-6 text-3xl font-bold text-ink">Calendrier</Text>
 
       <View className="mb-3 flex-row items-center justify-between">
@@ -232,6 +233,6 @@ export default function CalendarScreen() {
           onSaved={handleDaySaved}
         />
       )}
-    </ScrollView>
+    </Screen>
   );
 }

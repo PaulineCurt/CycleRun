@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Pressable, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { getProfile, updateProfile, type Profile as ProfileData } from "@/lib/api";
@@ -10,6 +10,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { AvatarPickerSheet } from "@/components/AvatarPickerSheet";
 import { SaveToast, type SaveToastHandle } from "@/components/ui/save-toast";
 import { PageLoader } from "@/components/ui/brand-loader";
+import { Screen } from "@/components/ui/screen";
 import { COLOR } from "@/lib/colors";
 
 function formatDays(value: number) {
@@ -105,7 +106,7 @@ export default function Profile() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-bg" contentContainerClassName="px-6 pb-10 pt-16">
+    <Screen className="flex-1 bg-bg" contentContainerClassName="px-6 pb-10 pt-16">
       {profile && (
         <View className="mb-6 flex-row items-center">
           <Pressable onPress={() => setAvatarPickerOpen(true)} accessibilityRole="button">
@@ -248,6 +249,6 @@ export default function Profile() {
       )}
 
       <SaveToast ref={saveToastRef} />
-    </ScrollView>
+    </Screen>
   );
 }
