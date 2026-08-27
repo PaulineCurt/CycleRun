@@ -30,8 +30,16 @@ class CycleCalculator
      * @param  Collection<int, Cycle>  $cycles
      * @param  ?Collection<int, ExclusionPeriod>  $exclusionPeriods
      */
-    public function cycleLength(Collection $cycles, ?int $declared = null, ?Collection $exclusionPeriods = null): DurationEstimate
-    {
+    public function cycleLength(
+        Collection $cycles,
+        ?int $declared = null,
+        ?Collection $exclusionPeriods = null,
+        ?int $override = null,
+    ): DurationEstimate {
+        if ($override !== null) {
+            return new DurationEstimate((float) $override, null, 0, EstimateSource::Override);
+        }
+
         $lengths = $this->cycleIntervalLengths($cycles, $exclusionPeriods ?? new Collection());
 
         return $this->estimate($lengths, $declared, self::DEFAULT_CYCLE_LENGTH);
@@ -40,8 +48,12 @@ class CycleCalculator
     /**
      * @param  Collection<int, Cycle>  $cycles
      */
-    public function mensesLength(Collection $cycles, ?int $declared = null): DurationEstimate
+    public function mensesLength(Collection $cycles, ?int $declared = null, ?int $override = null): DurationEstimate
     {
+        if ($override !== null) {
+            return new DurationEstimate((float) $override, null, 0, EstimateSource::Override);
+        }
+
         return $this->estimate($this->mensesLengthValues($cycles), $declared, self::DEFAULT_MENSES_LENGTH);
     }
 
@@ -93,11 +105,11 @@ class CycleCalculator
      * @param  Collection<int, Cycle>  $cycles
      * @param  ?Collection<int, ExclusionPeriod>  $exclusionPeriods
      */
-    public function frequency(Collection $cycles, ?Collection $exclusionPeriods = null): Frequency
+    public function frequency(Collection $cycles, ?Collection $exclusionPeriods = null, ?int $override = null): Frequency
     {
-        $estimate = $this->cycleLength($cycles, declared: null, exclusionPeriods: $exclusionPeriods);
+        $estimate = $this->cycleLength($cycles, declared: null, exclusionPeriods: $exclusionPeriods, override: $override);
 
-        if ($estimate->source !== EstimateSource::Measured) {
+        if (!$estimate->isTrustworthy()) {
             return Frequency::Unknown;
         }
 

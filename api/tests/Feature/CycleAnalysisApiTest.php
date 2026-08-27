@@ -49,6 +49,22 @@ class CycleAnalysisApiTest extends TestCase
         $this->assertSame('2026-04-23', $forecast[1]['start']); // + another 28
     }
 
+    public function test_sample_size_reflects_real_history_even_when_an_override_is_active(): void
+    {
+        Sanctum::actingAs($user = User::factory()->create(['cycle_length_override' => 45]));
+
+        Cycle::create(['user_id' => $user->id, 'started_on' => '2026-01-01']);
+        Cycle::create(['user_id' => $user->id, 'started_on' => '2026-01-29']);
+
+        $response = $this->getJson('/api/cycle-analysis');
+
+        // The override drives the forecast (see below) but must not zero out
+        // sample_size — that would misrepresent an established user's history.
+        $response->assertOk()->assertJsonPath('cycle.sample_size', 1);
+        $forecast = $response->json('forecast');
+        $this->assertSame('2026-03-15', $forecast[0]['start']); // Jan29 + 45, overridden
+    }
+
     public function test_it_returns_empty_history_and_forecast_without_any_cycle(): void
     {
         Sanctum::actingAs(User::factory()->create());

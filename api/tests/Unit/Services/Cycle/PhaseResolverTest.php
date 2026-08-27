@@ -205,6 +205,30 @@ class PhaseResolverTest extends TestCase
         $this->assertFalse($resolver->isOverdue($asOf, $cycleStart, $this->estimate(28.0, EstimateSource::Declared), null));
     }
 
+    public function test_is_overdue_also_triggers_on_a_manual_override(): void
+    {
+        // A user sets an override precisely to make predictions MORE authoritative —
+        // it must not be silently treated like an unmeasured guess.
+        $resolver = new PhaseResolver();
+        $cycleStart = CarbonImmutable::parse('2026-01-01');
+
+        $this->assertTrue(
+            $resolver->isOverdue($cycleStart->addDays(39), $cycleStart, $this->estimate(28.0, EstimateSource::Override), amplitudeDays: 4.0)
+        );
+    }
+
+    public function test_low_confidence_is_false_for_a_manual_override(): void
+    {
+        $resolver = new PhaseResolver();
+        $cycleStart = CarbonImmutable::parse('2026-01-01');
+        $date = CarbonImmutable::parse('2026-01-10');
+        $mensesLength = $this->estimate(5.0);
+
+        $result = $resolver->resolve($date, $cycleStart, $this->estimate(28.0, EstimateSource::Override), $mensesLength, $this->regular());
+
+        $this->assertFalse($result->lowConfidence);
+    }
+
     public function test_is_overdue_switches_at_max_of_38_or_mean_plus_amplitude(): void
     {
         $resolver = new PhaseResolver();

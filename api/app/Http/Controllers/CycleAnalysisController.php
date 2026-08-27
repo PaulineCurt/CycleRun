@@ -17,10 +17,16 @@ class CycleAnalysisController extends Controller
         $cycles = $user->cycles()->orderBy('started_on')->get();
         $exclusionPeriods = $user->exclusionPeriods;
 
-        $mensesLength = $calculator->mensesLength($cycles, $user->typical_menses_length);
+        $mensesLength = $calculator->mensesLength($cycles, $user->typical_menses_length, $user->menses_length_override);
         $mensesVariation = $calculator->mensesLengthVariation($cycles);
 
-        $cycleLength = $calculator->cycleLength($cycles, $user->typical_cycle_length, $exclusionPeriods);
+        $cycleLength = $calculator->cycleLength($cycles, $user->typical_cycle_length, $exclusionPeriods, $user->cycle_length_override);
+        // Reported separately from the override-aware estimates above: sample_size
+        // reflects how much real history actually exists, so it can't drop to 0 just
+        // because a manual override happens to be active — that would misrepresent
+        // an established user's history as if she had none.
+        $mensesLengthRaw = $calculator->mensesLength($cycles, $user->typical_menses_length);
+        $cycleLengthRaw = $calculator->cycleLength($cycles, $user->typical_cycle_length, $exclusionPeriods);
         $birthDate = $user->birth_date?->toImmutable();
         $regularity = $calculator->regularity($cycles, $birthDate, CarbonImmutable::today(), $exclusionPeriods);
 
@@ -86,13 +92,13 @@ class CycleAnalysisController extends Controller
             'menses' => [
                 'last_duration' => $lastMensesDuration,
                 'variation_days' => $mensesVariation,
-                'sample_size' => $mensesLength->sampleSize,
+                'sample_size' => $mensesLengthRaw->sampleSize,
             ],
             'cycle' => [
                 'last_duration' => $lastCycleDuration,
                 'variation_days' => $regularity->amplitudeDays,
                 'regularity' => $regularity->regularity->value,
-                'sample_size' => $cycleLength->sampleSize,
+                'sample_size' => $cycleLengthRaw->sampleSize,
             ],
             'history' => $history,
             'forecast' => $forecast,

@@ -87,6 +87,28 @@ class CycleCalculatorTest extends TestCase
         $this->assertSame(28.0, $estimate->days);
     }
 
+    public function test_cycle_length_override_wins_even_with_measured_cycles(): void
+    {
+        $calculator = new CycleCalculator();
+        $cycles = new Collection([$this->cycle('2026-01-01'), $this->cycle('2026-01-29')]);
+
+        $estimate = $calculator->cycleLength($cycles, override: 35);
+
+        $this->assertSame(EstimateSource::Override, $estimate->source);
+        $this->assertSame(35.0, $estimate->days);
+    }
+
+    public function test_menses_length_override_wins_even_with_a_measured_period(): void
+    {
+        $calculator = new CycleCalculator();
+        $cycles = new Collection([$this->cycle('2026-01-01', mensesEndedOn: '2026-01-05')]);
+
+        $estimate = $calculator->mensesLength($cycles, override: 7);
+
+        $this->assertSame(EstimateSource::Override, $estimate->source);
+        $this->assertSame(7.0, $estimate->days);
+    }
+
     public function test_cycle_length_window_caps_at_six_measurements_dropping_the_oldest(): void
     {
         $calculator = new CycleCalculator();
@@ -277,6 +299,13 @@ class CycleCalculatorTest extends TestCase
         $cycles = new Collection([$this->cycle('2026-01-01')]);
 
         $this->assertSame(Frequency::Unknown, $calculator->frequency($cycles));
+    }
+
+    public function test_frequency_classifies_from_a_manual_override_with_no_cycles_logged_at_all(): void
+    {
+        $calculator = new CycleCalculator();
+
+        $this->assertSame(Frequency::Infrequent, $calculator->frequency(new Collection(), override: 45));
     }
 
     public function test_an_interval_overlapping_a_pregnancy_is_excluded_from_the_cycle_length_calculation(): void

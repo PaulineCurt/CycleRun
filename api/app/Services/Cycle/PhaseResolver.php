@@ -65,7 +65,7 @@ class PhaseResolver
             ovulationWindowEnd: $ovulationWindowEnd,
             nextStartRangeStart: $nextStartRangeStart,
             nextStartRangeEnd: $nextStartRangeEnd,
-            lowConfidence: $cycleLength->source !== EstimateSource::Measured
+            lowConfidence: !$cycleLength->isTrustworthy()
                 || $regularity->lowConfidence
                 || $regularity->regularity === Regularity::Irregular,
         );
@@ -81,7 +81,7 @@ class PhaseResolver
         DurationEstimate $cycleLength,
         ?float $amplitudeDays,
     ): bool {
-        if ($cycleLength->source !== EstimateSource::Measured) {
+        if (!$cycleLength->isTrustworthy()) {
             return false;
         }
 

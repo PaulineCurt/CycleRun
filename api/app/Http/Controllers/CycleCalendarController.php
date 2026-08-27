@@ -23,8 +23,8 @@ class CycleCalendarController extends Controller
         $cycles = $user->cycles()->orderBy('started_on')->get();
         $exclusionPeriods = $user->exclusionPeriods;
 
-        $cycleLength = $calculator->cycleLength($cycles, $user->typical_cycle_length, $exclusionPeriods);
-        $mensesLength = $calculator->mensesLength($cycles, $user->typical_menses_length);
+        $cycleLength = $calculator->cycleLength($cycles, $user->typical_cycle_length, $exclusionPeriods, $user->cycle_length_override);
+        $mensesLength = $calculator->mensesLength($cycles, $user->typical_menses_length, $user->menses_length_override);
         $birthDate = $user->birth_date?->toImmutable();
         $regularity = $calculator->regularity($cycles, $birthDate, CarbonImmutable::today(), $exclusionPeriods);
 
