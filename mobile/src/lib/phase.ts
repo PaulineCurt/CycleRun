@@ -16,3 +16,18 @@ export const PHASE_RING_CLASS: Record<Phase, string> = {
   ovulation: "border-phase-ovulation",
   luteal: "border-phase-luteal",
 };
+
+export const PHASE_FILL_CLASS: Record<Phase, string> = {
+  menstrual: "bg-phase-menstrual",
+  follicular: "bg-phase-follicular",
+  ovulation: "bg-phase-ovulation",
+  luteal: "bg-phase-luteal",
+};
+
+/** Text colour that stays legible on top of PHASE_FILL_CLASS. */
+export const PHASE_ON_FILL_TEXT_CLASS: Record<Phase, string> = {
+  menstrual: "text-ink",
+  follicular: "text-ink",
+  ovulation: "text-ink",
+  luteal: "text-surface",
+};

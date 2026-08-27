@@ -12,7 +12,7 @@ const BADGE = COLOR.badge;
  * feeling sheet (energy, pain, symptoms by body area) — no navigation, opens inline.
  * Menstrual flow itself is logged from the calendar, not from here.
  */
-export function DailyFeelingCard() {
+export function DailyFeelingCard({ onSaved }: { onSaved?: () => void }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -25,7 +25,7 @@ export function DailyFeelingCard() {
         onPress={() => setOpen(true)}
         className="mt-2"
       />
-      {open && <DayFeelingSheet onClose={() => setOpen(false)} />}
+      {open && <DayFeelingSheet onClose={() => setOpen(false)} onSaved={onSaved} />}
     </Card>
   );
 }

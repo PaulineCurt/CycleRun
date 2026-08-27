@@ -31,7 +31,14 @@ type Pending = { energy: number | null; pain: number | null; symptoms: SymptomMa
  * tab's own screen), and its scroll view natively cooperates with the
  * drag-to-close gesture instead of fighting it.
  */
-export function DayFeelingSheet({ onClose }: { onClose: () => void }) {
+export function DayFeelingSheet({
+  onClose,
+  onSaved,
+}: {
+  onClose: () => void;
+  /** Fired right after a successful save (before the sheet auto-dismisses). */
+  onSaved?: () => void;
+}) {
   const today = toDateKey(new Date());
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState<Pending>({ energy: null, pain: null, symptoms: {} });
@@ -68,6 +75,7 @@ export function DayFeelingSheet({ onClose }: { onClose: () => void }) {
     saveToastRef.current?.showSaving();
     try {
       await upsertDayLog(today, pending);
+      onSaved?.();
       saveToastRef.current?.showSuccess();
       // Let the confirmation flash briefly before the sheet closes itself.
       setTimeout(() => sheetRef.current?.dismiss(), 500);

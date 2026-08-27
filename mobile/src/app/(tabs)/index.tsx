@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import { PHASE_LABEL } from "@/lib/phase";
 import { CycleRing } from "@/components/CycleRing";
 import { DailyFeelingCard } from "@/components/DailyFeelingCard";
+import { HomeTrainingCard } from "@/components/HomeTrainingCard";
 import { PhaseTip } from "@/components/PhaseTip";
 import { Card } from "@/components/ui/card";
 import { CardHeader } from "@/components/ui/card-header";
@@ -43,6 +44,9 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const hasLoadedOnce = useRef(false);
+  // Bumped when today's feeling is saved, so the training card re-derives its
+  // cycle adaptation (a fresh high pain flips today's session to "à reporter").
+  const [trainingRefresh, setTrainingRefresh] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -83,20 +87,24 @@ export default function Home() {
       )}
 
       {!error && status?.status === "no_data" && (
-        <Card>
-          <Text className="text-center text-base text-ink opacity-70">
-            Aucune donnée pour l'instant. Va dans l'onglet Calendrier et tape sur le jour où tes
-            dernières règles ont commencé pour démarrer le suivi.
-          </Text>
-          <Text className="mt-3 text-center text-sm text-ink opacity-60">
-            Tu connais déjà la durée habituelle de ton cycle ? Renseigne-la dans l'onglet Profil
-            pour des estimations plus justes dès le départ.
-          </Text>
-        </Card>
+        <View className="gap-4">
+          <Card>
+            <Text className="text-center text-base text-ink opacity-70">
+              Aucune donnée pour l'instant. Va dans l'onglet Calendrier et tape sur le jour où tes
+              dernières règles ont commencé pour démarrer le suivi.
+            </Text>
+            <Text className="mt-3 text-center text-sm text-ink opacity-60">
+              Tu connais déjà la durée habituelle de ton cycle ? Renseigne-la dans l'onglet Profil
+              pour des estimations plus justes dès le départ.
+            </Text>
+          </Card>
+
+          <HomeTrainingCard refreshSignal={trainingRefresh} />
+        </View>
       )}
 
-      {/* Ordered, composable blocks — a future "séance du jour" (module B) slots in
-          at the top of this list without touching what's below it. */}
+      {/* Ordered, composable blocks — "séance du jour" (module B) sits right under
+          the cycle ring; everything below is untouched. */}
       {!error && status?.status === "ok" && (
         <View className="gap-4">
           <Card className="items-center">
@@ -113,6 +121,8 @@ export default function Home() {
               </View>
             )}
           </Card>
+
+          <HomeTrainingCard refreshSignal={trainingRefresh} />
 
           <Card className="items-center">
             <CardHeader icon="calendar-outline" color={BADGE} label="Prochaines règles" />
@@ -131,7 +141,7 @@ export default function Home() {
             )}
           </Card>
 
-          <DailyFeelingCard />
+          <DailyFeelingCard onSaved={() => setTrainingRefresh((n) => n + 1)} />
 
           {status.predictable && (
             <Card>
