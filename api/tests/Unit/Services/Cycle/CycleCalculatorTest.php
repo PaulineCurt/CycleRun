@@ -315,4 +315,24 @@ class CycleCalculatorTest extends TestCase
         $this->assertSame(1, $estimate->sampleSize);
         $this->assertSame(28.0, $estimate->days);
     }
+
+    public function test_menses_length_variation_is_the_amplitude_of_measured_durations(): void
+    {
+        $calculator = new CycleCalculator();
+        $cycles = new Collection([
+            $this->cycle('2026-01-01', '2026-01-04'), // 4 days
+            $this->cycle('2026-02-01', '2026-02-06'), // 6 days
+            $this->cycle('2026-03-01', '2026-03-04'), // 4 days
+        ]);
+
+        $this->assertSame(2.0, $calculator->mensesLengthVariation($cycles));
+    }
+
+    public function test_menses_length_variation_is_null_below_two_measured_values(): void
+    {
+        $calculator = new CycleCalculator();
+        $cycles = new Collection([$this->cycle('2026-01-01', '2026-01-04')]);
+
+        $this->assertNull($calculator->mensesLengthVariation($cycles));
+    }
 }

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CycleCalendarController;
 use App\Http\Controllers\CycleController;
 use App\Http\Controllers\CycleStatusController;
 use App\Http\Controllers\DayLogController;
@@ -22,6 +23,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update']);
 
     Route::get('/cycle-status', CycleStatusController::class);
+    Route::get('/cycle-calendar', CycleCalendarController::class);
 
     Route::apiResource('cycles', CycleController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('day-logs', DayLogController::class)->only(['index', 'store', 'update', 'destroy']);

@@ -42,13 +42,20 @@ class CycleCalculator
      */
     public function mensesLength(Collection $cycles, ?int $declared = null): DurationEstimate
     {
-        $lengths = $cycles
-            ->filter(fn (Cycle $cycle) => $cycle->menses_ended_on !== null)
-            ->sortBy('started_on')
-            ->values()
-            ->map(fn (Cycle $cycle) => (float) $cycle->started_on->diffInDays($cycle->menses_ended_on) + 1);
+        return $this->estimate($this->mensesLengthValues($cycles), $declared, self::DEFAULT_MENSES_LENGTH);
+    }
 
-        return $this->estimate($lengths, $declared, self::DEFAULT_MENSES_LENGTH);
+    /**
+     * Amplitude (max − min) of measured menses lengths within the window. Null below 2
+     * measured values — a single data point has no variation to report.
+     *
+     * @param  Collection<int, Cycle>  $cycles
+     */
+    public function mensesLengthVariation(Collection $cycles): ?float
+    {
+        $lengths = $this->mensesLengthValues($cycles)->slice(-self::WINDOW)->values();
+
+        return $lengths->count() >= 2 ? $lengths->max() - $lengths->min() : null;
     }
 
     /**
@@ -124,6 +131,19 @@ class CycleCalculator
             ->map(fn (Collection $pair) => (float) $pair->first()->started_on->diffInDays($pair->last()->started_on))
             ->reject(fn (float $length) => $length > self::OUTLIER_MAX_DAYS || $length < self::OUTLIER_MIN_DAYS)
             ->values();
+    }
+
+    /**
+     * @param  Collection<int, Cycle>  $cycles
+     * @return Collection<int, float> sorted oldest to most recent
+     */
+    private function mensesLengthValues(Collection $cycles): Collection
+    {
+        return $cycles
+            ->filter(fn (Cycle $cycle) => $cycle->menses_ended_on !== null)
+            ->sortBy('started_on')
+            ->values()
+            ->map(fn (Cycle $cycle) => (float) $cycle->started_on->diffInDays($cycle->menses_ended_on) + 1);
     }
 
     /**
