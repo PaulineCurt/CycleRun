@@ -265,3 +265,163 @@ export async function upsertDayLog(
     body: JSON.stringify(data),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Moteur B — training programs
+// ---------------------------------------------------------------------------
+
+export type SessionType =
+  | "run_walk"
+  | "easy"
+  | "tempo"
+  | "threshold"
+  | "interval"
+  | "long"
+  | "rest"
+  | "cross";
+
+export type SessionStatus = "planned" | "done" | "skipped" | "moved";
+export type ProgramStatus = "draft" | "active" | "done" | "archived";
+
+/** Shape varies by session type — see the backend SessionDraft docblock. */
+export type PlannedLoad = {
+  mode: "duration" | "intervals" | "run_walk" | "cross" | "rest";
+  duration_s?: number;
+  work_s?: number;
+  reps?: number;
+  recovery_s?: number;
+  run_s?: number;
+  walk_s?: number;
+};
+
+export type SessionAdaptation = {
+  phase: Phase | null;
+  confidence: number;
+  rule: "rest_or_postpone" | "lighten" | "ease_off" | "quality_window" | "full";
+  headline: string;
+  intensity_delta: number;
+};
+
+export type SessionActual = {
+  rpe?: number | null;
+  duration_s?: number | null;
+  distance_m?: number | null;
+  note?: string | null;
+};
+
+/** Where the cycle sits on a session's date (render-time overlay, §6). */
+export type SessionCycle = {
+  phase: Phase | null;
+  confidence: number | null;
+  pain_flag?: boolean;
+  frozen?: boolean;
+};
+
+export type SessionBase = {
+  planned_load: PlannedLoad;
+  target_pace_min_s: number | null;
+  target_pace_max_s: number | null;
+};
+
+export type TrainingSession = {
+  id: number;
+  planned_date: string;
+  week_index: number;
+  type: SessionType;
+  /** Already cycle-adapted when `adapted` is true — compare with `base`. */
+  planned_load: PlannedLoad;
+  target_pace_min_s: number | null;
+  target_pace_max_s: number | null;
+  status: SessionStatus;
+  cycle: SessionCycle | null;
+  adaptation: SessionAdaptation | null;
+  adapted: boolean;
+  postponed: boolean;
+  base: SessionBase | null;
+  actual: SessionActual | null;
+};
+
+export type PaceTable = Partial<Record<"recovery" | "easy" | "tempo" | "threshold" | "interval", [number, number]>>;
+
+export type ProgramSummary = {
+  id: number;
+  goal_distance_m: number;
+  goal_time_s: number | null;
+  methodology: "vma" | "vdot";
+  duration_weeks: number;
+  days_per_week: number;
+  start_date: string;
+  status: ProgramStatus;
+  created_at: string | null;
+};
+
+export type Feasibility = {
+  feasible: boolean;
+  projected_time_s: number;
+  achievable_time_s: number;
+  suggested_goal_time_s: number | null;
+  suggested_duration_weeks: number | null;
+  alert: string | null;
+};
+
+export type ProgramDetail = ProgramSummary & {
+  paces: PaceTable;
+  level_input: Record<string, unknown>;
+  sessions: TrainingSession[];
+  feasibility: Feasibility | null;
+  warnings: string[];
+};
+
+export type LevelInput =
+  | { kind: "field_test"; vma_kmh: number }
+  | { kind: "field_test"; half_cooper_m: number }
+  | { kind: "race_result"; distance_m: number; time_s: number };
+
+export type CreateProgramInput = {
+  level_input: LevelInput;
+  goal_time_s?: number | null;
+  duration_weeks: number;
+  days_per_week: number;
+  start_date: string;
+  health_flags?: Record<string, unknown>;
+};
+
+export async function getPrograms() {
+  return api<ProgramSummary[]>("/programs");
+}
+
+export async function getProgram(id: number) {
+  return api<ProgramDetail>(`/programs/${id}`);
+}
+
+export async function createProgram(input: CreateProgramInput) {
+  return api<ProgramDetail>("/programs", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateProgramStatus(id: number, status: ProgramStatus) {
+  return api<ProgramSummary>(`/programs/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function deleteProgram(id: number) {
+  return api<undefined>(`/programs/${id}`, { method: "DELETE" });
+}
+
+export async function getTrainingSession(id: number) {
+  return api<TrainingSession & { program_id: number }>(`/training-sessions/${id}`);
+}
+
+export async function updateTrainingSession(
+  id: number,
+  data: { status?: SessionStatus; planned_date?: string; actual?: SessionActual | null },
+) {
+  return api<TrainingSession>(`/training-sessions/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}

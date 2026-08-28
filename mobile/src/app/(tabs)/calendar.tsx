@@ -1,7 +1,16 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import { useFocusEffect } from "expo-router";
-import { getCycleCalendar, getDayLog, type CalendarDay, type DayLog } from "@/lib/api";
+import { useFocusEffect, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import {
+  getCycleCalendar,
+  getDayLog,
+  getProgram,
+  getPrograms,
+  type CalendarDay,
+  type DayLog,
+  type SessionType,
+} from "@/lib/api";
 import { toDateKey } from "@/lib/calendar";
 import { PHASE_LABEL, PHASE_RING_CLASS } from "@/lib/phase";
 import { CycleCalendarView } from "@/components/CycleCalendarView";
@@ -9,6 +18,8 @@ import { DayActionModal } from "@/components/DayActionModal";
 import { DayLogSummary } from "@/components/DayLogSummary";
 import { PageLoader } from "@/components/ui/brand-loader";
 import { Screen } from "@/components/ui/screen";
+import { COLOR } from "@/lib/colors";
+import { SESSION_LABEL, pickActiveProgram, sessionAccent } from "@/lib/training";
 
 const MONTH_LABEL_FORMAT = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
 
@@ -16,10 +27,18 @@ function monthKey(year: number, month: number) {
   return `${year}-${String(month + 1).padStart(2, "0")}`;
 }
 
+type DaySession = { id: number; type: SessionType; postponed: boolean };
+
 export default function CalendarScreen() {
+  const router = useRouter();
   const today = new Date();
   const [viewedYear, setViewedYear] = useState(today.getFullYear());
   const [viewedMonth, setViewedMonth] = useState(today.getMonth());
+
+  // Training sessions of the active/draft plan, keyed by date — overlaid as a dot
+  // on the cycle grid so the two views line up. Best-effort: a failure here just
+  // means no dots, the cycle calendar still works.
+  const [trainingByDate, setTrainingByDate] = useState<Map<string, DaySession>>(new Map());
 
   const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(true);
@@ -47,6 +66,37 @@ export default function CalendarScreen() {
     const key = toDateKey(selectedDate);
     return calendarDays.find((day) => day.date === key);
   }, [selectedDate, calendarDays]);
+
+  const sessionMarkers = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const [date, session] of trainingByDate) {
+      map.set(date, session.postponed ? COLOR.danger : sessionAccent(session.type));
+    }
+    return map;
+  }, [trainingByDate]);
+
+  const selectedSession = selectedDate ? trainingByDate.get(toDateKey(selectedDate)) : undefined;
+
+  const loadTraining = useCallback(() => {
+    getPrograms()
+      .then(async (list) => {
+        const chosen = pickActiveProgram(list);
+        if (!chosen) {
+          setTrainingByDate(new Map());
+          return;
+        }
+        const program = await getProgram(chosen.id);
+        setTrainingByDate(
+          new Map(
+            program.sessions.map((s) => [
+              s.planned_date,
+              { id: s.id, type: s.type, postponed: s.postponed },
+            ]),
+          ),
+        );
+      })
+      .catch(() => setTrainingByDate(new Map()));
+  }, []);
 
   const loadCalendar = useCallback((year: number, month: number) => {
     const key = monthKey(year, month);
@@ -105,7 +155,8 @@ export default function CalendarScreen() {
       setSelectedDate(now);
       loadCalendar(now.getFullYear(), now.getMonth());
       loadDayLog(toDateKey(now));
-    }, [loadCalendar, loadDayLog]),
+      loadTraining();
+    }, [loadCalendar, loadDayLog, loadTraining]),
   );
 
   function goToPreviousMonth() {
@@ -188,6 +239,7 @@ export default function CalendarScreen() {
           year={viewedYear}
           month={viewedMonth}
           days={calendarDays}
+          sessionMarkers={sessionMarkers}
           onPressDay={(date) => handleDayPress(date)}
           onDoubleTapDay={(date) => handleDayDoubleTap(date)}
         />
@@ -221,6 +273,28 @@ export default function CalendarScreen() {
               Aucune donnée de cycle pour ce jour.
             </Text>
           )}
+          {selectedSession && (
+            <Pressable
+              onPress={() => router.push(`/training/session/${selectedSession.id}`)}
+              className="mt-3 flex-row items-center gap-2 border-t border-ink/10 pt-3"
+              accessibilityRole="button"
+            >
+              <View
+                className="h-2.5 w-2.5 rounded-full"
+                style={{
+                  backgroundColor: selectedSession.postponed
+                    ? COLOR.danger
+                    : sessionAccent(selectedSession.type),
+                }}
+              />
+              <Text className="flex-1 text-sm text-ink opacity-80">
+                Séance : {SESSION_LABEL[selectedSession.type]}
+                {selectedSession.postponed ? " · à reporter" : ""}
+              </Text>
+              <Ionicons name="chevron-forward" size={16} color={COLOR.ink} />
+            </Pressable>
+          )}
+
           <DayLogSummary log={dayLog} />
         </View>
       )}

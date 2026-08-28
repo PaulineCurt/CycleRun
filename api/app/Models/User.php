@@ -60,4 +60,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(ExclusionPeriod::class);
     }
+
+    public function programs(): HasMany
+    {
+        return $this->hasMany(Program::class);
+    }
 }
