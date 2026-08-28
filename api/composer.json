@@ -49,6 +49,8 @@
             "@php artisan config:clear --ansi @no_additional_args",
             "@php artisan test"
         ],
+        "test:setup": "bash ../bin/setup-test-db.sh",
+        "test:migrate": "DB_DATABASE=cyclerun_testing @php artisan migrate --force",
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
             "@php artisan package:discover --ansi"

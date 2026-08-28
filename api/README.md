@@ -7,6 +7,45 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## CycleRun API
+
+### Mise en place (clone frais)
+
+```bash
+docker compose up -d db            # Postgres 16 (conteneur)
+cd api
+composer install
+cp .env.example .env               # puis renseigner DB_* (cyclerun / cyclerun / cyclerun)
+php artisan key:generate
+php artisan migrate                # base de dev : cyclerun
+```
+
+### Base de test
+
+Les tests tournent sur une base Postgres **dédiée et isolée**, `cyclerun_testing`,
+distincte de la base de dev `cyclerun`. La config de test vit dans `api/phpunit.xml`
+(`APP_ENV=testing`, `DB_DATABASE=cyclerun_testing`) — il n'y a **pas** de fichier
+`.env.testing`.
+
+```bash
+bash bin/setup-test-db.sh          # crée cyclerun_testing (idempotent, une seule fois)
+# ou : composer test:setup
+
+php artisan test                   # cible cyclerun_testing via phpunit.xml
+```
+
+`RefreshDatabase` migre la base de test automatiquement au lancement de la suite ;
+`composer test:migrate` existe si besoin de la migrer à la main
+(`DB_DATABASE=cyclerun_testing php artisan migrate --force`).
+
+**Ne jamais utiliser `--env=testing`** : le fichier n'existe pas, Laravel retombe en
+silence sur `.env` et vise la base de dev. Les commandes destructrices
+(`migrate:fresh`, `migrate:refresh`, `migrate:reset`, `db:wipe`) sont bloquées en
+environnement `local` par `AppServiceProvider` ; pour forcer sur la base de dev :
+`ALLOW_FRESH=1 php artisan migrate:fresh`.
+
+La suite tourne en CI sur chaque push touchant `api/` (`.github/workflows/api-tests.yml`).
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
