@@ -1,5 +1,14 @@
+import type { ComponentProps } from "react";
+import type { ColorValue } from "react-native";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+
+// expo-router types the tab tint as ColorValue (nullable); ours are plain hex strings.
+function tabIcon(name: ComponentProps<typeof Ionicons>["name"]) {
+  return function TabIcon({ color, size }: { color: ColorValue; size: number }) {
+    return <Ionicons name={name} color={color as string} size={size} />;
+  };
+}
 
 export default function TabsLayout() {
   return (
@@ -15,32 +24,28 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Accueil",
-          tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size} />,
+          tabBarIcon: tabIcon("home"),
         }}
       />
       <Tabs.Screen
         name="calendar"
         options={{
           title: "Calendrier",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar" color={color} size={size} />
-          ),
+          tabBarIcon: tabIcon("calendar"),
         }}
       />
       <Tabs.Screen
         name="training"
         options={{
           title: "Entraînement",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="fitness" color={color} size={size} />
-          ),
+          tabBarIcon: tabIcon("fitness"),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: "Profil",
-          tabBarIcon: ({ color, size }) => <Ionicons name="person" color={color} size={size} />,
+          tabBarIcon: tabIcon("person"),
         }}
       />
     </Tabs>
