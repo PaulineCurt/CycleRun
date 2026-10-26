@@ -343,11 +343,18 @@ export type TrainingSession = {
 
 export type PaceTable = Partial<Record<"recovery" | "easy" | "tempo" | "threshold" | "interval", [number, number]>>;
 
+/** Declared runner level — selects a starting profile, recomputes no methodology. */
+export type Level = "debutante" | "intermediaire" | "confirmee";
+/** How well anchored the VMA behind the plan is (§6 refinement ladder). */
+export type VmaSource = "default" | "declared" | "measured";
+
 export type ProgramSummary = {
   id: number;
   goal_distance_m: number;
   goal_time_s: number | null;
   methodology: "vma" | "vdot";
+  level: Level | null;
+  vma_source: VmaSource | null;
   duration_weeks: number;
   days_per_week: number;
   start_date: string;
@@ -366,7 +373,7 @@ export type Feasibility = {
 
 export type ProgramDetail = ProgramSummary & {
   paces: PaceTable;
-  level_input: Record<string, unknown>;
+  level_input: Record<string, unknown> | null;
   sessions: TrainingSession[];
   feasibility: Feasibility | null;
   warnings: string[];
@@ -378,7 +385,9 @@ export type LevelInput =
   | { kind: "race_result"; distance_m: number; time_s: number };
 
 export type CreateProgramInput = {
-  level_input: LevelInput;
+  level: Level;
+  /** Optional: a débutante finishes stage 1 with no pace anchor at all. */
+  level_input?: LevelInput | null;
   goal_time_s?: number | null;
   duration_weeks: number;
   days_per_week: number;
@@ -401,11 +410,19 @@ export async function createProgram(input: CreateProgramInput) {
   });
 }
 
-export async function updateProgramStatus(id: number, status: ProgramStatus) {
+/** PATCH a program's editable attributes. `level` edits do NOT regenerate the plan. */
+export async function updateProgram(
+  id: number,
+  data: { status?: ProgramStatus; level?: Level },
+) {
   return api<ProgramSummary>(`/programs/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ status }),
+    body: JSON.stringify(data),
   });
+}
+
+export async function updateProgramStatus(id: number, status: ProgramStatus) {
+  return updateProgram(id, { status });
 }
 
 export async function deleteProgram(id: number) {

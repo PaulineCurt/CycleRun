@@ -1,4 +1,5 @@
 import type {
+  Level,
   Phase,
   PlannedLoad,
   ProgramSummary,
@@ -39,6 +40,12 @@ export function nextPlannedSession(
 export function phaseChip(phase: Phase): { color: string; label: string } {
   return { color: COLOR.phase[phase], label: PHASE_LABEL[phase] };
 }
+
+export const LEVEL_LABEL: Record<Level, string> = {
+  debutante: "Débutante",
+  intermediaire: "Intermédiaire",
+  confirmee: "Confirmée",
+};
 
 export const SESSION_LABEL: Record<SessionType, string> = {
   run_walk: "Course / marche",
