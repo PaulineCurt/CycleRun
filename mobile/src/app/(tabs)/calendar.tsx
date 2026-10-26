@@ -156,7 +156,7 @@ export default function CalendarScreen() {
       loadCalendar(now.getFullYear(), now.getMonth());
       loadDayLog(toDateKey(now));
       loadTraining();
-    }, [loadCalendar, loadDayLog, loadTraining]),
+    }, [loadCalendar, loadDayLog, loadTraining, setViewedYear, setViewedMonth, setSelectedDate]),
   );
 
   function goToPreviousMonth() {

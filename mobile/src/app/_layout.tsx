@@ -18,7 +18,7 @@ function Gate() {
     // Only /login auto-redirects once authed — /register drives its own post-signup
     // navigation (to /onboarding), so forcing "/" here would race with that.
     if (authed && onLogin) router.replace("/");
-  }, [ready, authed, segments]);
+  }, [ready, authed, segments, router]);
 
   if (!ready) return null;
 

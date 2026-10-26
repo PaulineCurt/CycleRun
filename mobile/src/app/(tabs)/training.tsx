@@ -7,7 +7,6 @@ import {
   getPrograms,
   type ProgramDetail,
   type ProgramSummary,
-  type TrainingSession,
 } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { CardHeader } from "@/components/ui/card-header";
