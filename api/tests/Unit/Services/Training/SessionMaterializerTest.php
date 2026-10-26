@@ -2,10 +2,12 @@
 
 namespace Tests\Unit\Services\Training;
 
+use App\Enums\Level;
+use App\Enums\SessionType;
 use App\Services\Training\LevelNormalizer;
+use App\Services\Training\LevelProfiles;
 use App\Services\Training\Periodizer;
 use App\Services\Training\SessionMaterializer;
-use App\Enums\SessionType;
 use App\Services\Training\Track;
 use Carbon\CarbonImmutable;
 use PHPUnit\Framework\TestCase;
@@ -13,17 +15,20 @@ use PHPUnit\Framework\TestCase;
 class SessionMaterializerTest extends TestCase
 {
     private SessionMaterializer $materializer;
+
     private array $paces;
 
     protected function setUp(): void
     {
-        $this->materializer = new SessionMaterializer();
-        $this->paces = (new LevelNormalizer())->normalize(['kind' => 'field_test', 'vma_kmh' => 14.0])->paces;
+        $this->materializer = new SessionMaterializer;
+        $this->paces = (new LevelNormalizer)
+            ->normalize(Level::Intermediaire, ['kind' => 'field_test', 'vma_kmh' => 14.0])
+            ->paces;
     }
 
     private function build(int $weeks, int $days, Track $track): array
     {
-        $blocks = (new Periodizer())->build($weeks, $days, $track);
+        $blocks = (new Periodizer)->build($weeks, $days, $track, LevelProfiles::for(Level::Intermediaire));
 
         return $this->materializer->materialize(
             $blocks,

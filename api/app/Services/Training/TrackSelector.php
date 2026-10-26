@@ -3,20 +3,27 @@
 namespace App\Services\Training;
 
 /**
- * Step 3 of the pipeline (§5): selectTrack(level) -> run_walk | continuous.
+ * Step 3 of the pipeline (§5 / §4.4 moteurB_three_levels.md): selectTrack(profile).
  *
- * A true beginner (very low VMA) starts on the course/marche protocol; everyone
- * else runs continuously from week 1. The VMA ceiling is provisional — TODO(expert).
+ * The declared level decides: only a débutante (`startsRunWalk`) starts on the
+ * course/marche protocol; intermédiaire / confirmée run continuously from week 1.
+ *
+ * The VMA is no longer a hard switch — it is a secondary net: if a *measured* VMA
+ * badly contradicts a continuous level, `contradictsContinuous()` lets the caller
+ * raise a product-side signal without forcing a downgrade.
  */
 final class TrackSelector
 {
-    /** Below this VMA the runner starts run/walk. TODO(expert), §4.3. */
+    /** Below this VMA a continuous level looks doubtful. TODO(expert), §4.4. */
     private const RUN_WALK_VMA_CEILING = 10.5;
 
-    public function select(NormalizedLevel $level): Track
+    public function select(LevelProfile $profile): Track
     {
-        return $level->vmaKmh < self::RUN_WALK_VMA_CEILING
-            ? Track::RunWalk
-            : Track::Continuous;
+        return $profile->startsRunWalk ? Track::RunWalk : Track::Continuous;
+    }
+
+    public function contradictsContinuous(float $vmaKmh): bool
+    {
+        return $vmaKmh < self::RUN_WALK_VMA_CEILING;
     }
 }

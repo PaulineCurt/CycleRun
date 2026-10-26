@@ -12,15 +12,14 @@ namespace App\Services\Training;
 final class ProgramBuilder
 {
     public function __construct(
-        private readonly LevelNormalizer $levelNormalizer = new LevelNormalizer(),
-        private readonly FeasibilityChecker $feasibilityChecker = new FeasibilityChecker(),
-        private readonly TrackSelector $trackSelector = new TrackSelector(),
-        private readonly Periodizer $periodizer = new Periodizer(),
-        private readonly SessionMaterializer $materializer = new SessionMaterializer(),
-        private readonly IntensityBalancer $intensityBalancer = new IntensityBalancer(),
-        private readonly SafetyCapper $safetyCapper = new SafetyCapper(),
-    ) {
-    }
+        private readonly LevelNormalizer $levelNormalizer = new LevelNormalizer,
+        private readonly FeasibilityChecker $feasibilityChecker = new FeasibilityChecker,
+        private readonly TrackSelector $trackSelector = new TrackSelector,
+        private readonly Periodizer $periodizer = new Periodizer,
+        private readonly SessionMaterializer $materializer = new SessionMaterializer,
+        private readonly IntensityBalancer $intensityBalancer = new IntensityBalancer,
+        private readonly SafetyCapper $safetyCapper = new SafetyCapper,
+    ) {}
 
     public function build(BuildParams $params): BuildResult
     {
@@ -31,18 +30,21 @@ final class ProgramBuilder
             throw new \InvalidArgumentException('daysPerWeek must be 2..4 in v1');
         }
 
-        $level = $this->levelNormalizer->normalize($params->levelInput);
+        $profile = LevelProfiles::for($params->level);
+
+        $level = $this->levelNormalizer->normalize($params->level, $params->levelInput);
 
         $feasibility = $this->feasibilityChecker->check(
+            $profile,
             $level,
             $params->goalDistanceM,
             $params->goalTimeS,
             $params->durationWeeks,
         );
 
-        $track = $this->trackSelector->select($level);
+        $track = $this->trackSelector->select($profile);
 
-        $blocks = $this->periodizer->build($params->durationWeeks, $params->daysPerWeek, $track);
+        $blocks = $this->periodizer->build($params->durationWeeks, $params->daysPerWeek, $track, $profile);
 
         $sessions = $this->materializer->materialize(
             $blocks,
@@ -55,9 +57,26 @@ final class ProgramBuilder
 
         $sessions = $this->intensityBalancer->balance($sessions);
 
-        $capped = $this->safetyCapper->apply($sessions, $params->healthFlags, $blocks, $level->paces);
+        $capped = $this->safetyCapper->apply(
+            $sessions,
+            $params->healthFlags,
+            $blocks,
+            $profile->weeklyProgression,
+            $level->paces,
+        );
 
         $warnings = $capped['warnings'];
+
+        // Secondary net (§4.4): a *measured* VMA well under the continuous floor on
+        // a continuous level is surfaced, never auto-downgraded. Not reachable at
+        // creation today (provenance is Default/Declared) — here for the re-plan.
+        if (! $profile->startsRunWalk
+            && $level->vmaProvenance === VmaProvenance::Measured
+            && $this->trackSelector->contradictsContinuous($level->vmaKmh)) {
+            $warnings[] = 'VMA mesurée basse pour un cran en course continue : '
+                .'un passage course/marche peut être proposé.';
+        }
+
         if ($feasibility->alert !== null) {
             array_unshift($warnings, $feasibility->alert);
         }
@@ -69,6 +88,7 @@ final class ProgramBuilder
             blocks: $blocks,
             sessions: $capped['sessions'],
             warnings: $warnings,
+            declaredLevel: $params->level,
         );
     }
 }
