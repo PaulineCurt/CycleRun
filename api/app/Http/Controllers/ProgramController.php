@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\Level;
 use App\Enums\Methodology;
 use App\Enums\ProgramStatus;
 use App\Enums\SessionStatus;
@@ -35,8 +36,10 @@ class ProgramController extends Controller
     public function store(Request $request, ProgramBuilder $builder)
     {
         $data = $request->validate([
-            'level_input' => ['required', 'array'],
-            'level_input.kind' => ['required', 'in:field_test,race_result'],
+            'level' => ['required', Rule::enum(Level::class)],
+            // Optional: a débutante finishes stage 1 with no pace anchor at all.
+            'level_input' => ['sometimes', 'nullable', 'array'],
+            'level_input.kind' => ['required_with:level_input', 'in:field_test,race_result'],
             'level_input.vma_kmh' => ['nullable', 'numeric', 'gt:0'],
             'level_input.half_cooper_m' => ['nullable', 'numeric', 'gt:0'],
             'level_input.distance_m' => ['nullable', 'integer', 'gt:0'],
@@ -51,7 +54,8 @@ class ProgramController extends Controller
         // v1 is 5 km road only (locked scope). The engine accepts other distances;
         // the API deliberately does not expose that yet.
         $params = new BuildParams(
-            levelInput: $data['level_input'],
+            levelInput: $data['level_input'] ?? null,
+            level: Level::from($data['level']),
             goalDistanceM: 5000,
             goalTimeS: $data['goal_time_s'] ?? null,
             durationWeeks: $data['duration_weeks'],
@@ -75,6 +79,8 @@ class ProgramController extends Controller
                 'goal_distance_m' => $params->goalDistanceM,
                 'goal_time_s' => $params->goalTimeS,
                 'methodology' => $methodology,
+                'level' => $params->level,
+                'vma_source' => $result->level->vmaProvenance,
                 'level_input' => $params->levelInput,
                 'paces' => $result->level->paces,
                 'duration_weeks' => $params->durationWeeks,
@@ -119,8 +125,11 @@ class ProgramController extends Controller
     {
         abort_unless($program->user_id === $request->user()->id, 404);
 
+        // `level` is an editable attribute (§4.6). Changing it does NOT regenerate
+        // the plan in flight — a re-plan on drift is a separate iteration.
         $data = $request->validate([
-            'status' => ['required', Rule::enum(ProgramStatus::class)],
+            'status' => ['sometimes', Rule::enum(ProgramStatus::class)],
+            'level' => ['sometimes', Rule::enum(Level::class)],
         ]);
 
         $program->update($data);
@@ -145,6 +154,8 @@ class ProgramController extends Controller
             'goal_distance_m' => $program->goal_distance_m,
             'goal_time_s' => $program->goal_time_s,
             'methodology' => $program->methodology->value,
+            'level' => $program->level?->value,
+            'vma_source' => $program->vma_source?->value,
             'duration_weeks' => $program->duration_weeks,
             'days_per_week' => $program->days_per_week,
             'start_date' => $program->start_date->toDateString(),

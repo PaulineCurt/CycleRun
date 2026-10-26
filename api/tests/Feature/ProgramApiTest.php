@@ -3,8 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Cycle;
-use App\Models\DayLog;
 use App\Models\Program;
+use App\Models\TrainingSession;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -18,6 +18,7 @@ class ProgramApiTest extends TestCase
     private function validPayload(array $overrides = []): array
     {
         return array_merge([
+            'level' => 'intermediaire',
             'level_input' => ['kind' => 'field_test', 'vma_kmh' => 14.0],
             'duration_weeks' => 12,
             'days_per_week' => 3,
@@ -119,6 +120,78 @@ class ProgramApiTest extends TestCase
         $this->postJson('/api/programs', $this->validPayload(['days_per_week' => 6]))->assertStatus(422);
     }
 
+    public function test_level_is_required(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+
+        $payload = $this->validPayload();
+        unset($payload['level']);
+
+        $this->postJson('/api/programs', $payload)->assertStatus(422);
+    }
+
+    public function test_a_debutante_can_generate_a_plan_with_no_level_input(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+
+        $payload = $this->validPayload(['level' => 'debutante']);
+        unset($payload['level_input']);
+
+        $response = $this->postJson('/api/programs', $payload)
+            ->assertCreated()
+            ->assertJsonPath('level', 'debutante')
+            ->assertJsonPath('vma_source', 'default');
+
+        // course/marche protocol, and no pace band on those sessions
+        $this->assertSame('run_walk', $response->json('sessions.0.type'));
+        $this->assertNull($response->json('sessions.0.target_pace_min_s'));
+        $this->assertNull(Program::first()->level_input);
+    }
+
+    public function test_level_and_vma_source_come_back_on_show(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $id = $this->postJson('/api/programs', $this->validPayload())->json('id');
+
+        $this->getJson("/api/programs/{$id}")->assertOk()
+            ->assertJsonPath('level', 'intermediaire')
+            ->assertJsonPath('vma_source', 'declared');
+    }
+
+    public function test_generation_is_deterministic_per_level(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+
+        $pick = fn ($sessions) => array_map(
+            fn ($s) => [$s['planned_date'], $s['type'], $s['planned_load']],
+            $sessions,
+        );
+
+        foreach (['debutante', 'intermediaire', 'confirmee'] as $level) {
+            $a = $this->postJson('/api/programs', $this->validPayload(['level' => $level]))->json('sessions');
+            $b = $this->postJson('/api/programs', $this->validPayload(['level' => $level]))->json('sessions');
+            $this->assertSame($pick($a), $pick($b), "deterministic for {$level}");
+        }
+    }
+
+    public function test_level_can_be_edited_without_regenerating_the_plan(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $id = $this->postJson('/api/programs', $this->validPayload())->json('id');
+        $before = $this->getJson("/api/programs/{$id}")->json('sessions');
+
+        $this->patchJson("/api/programs/{$id}", ['level' => 'confirmee'])
+            ->assertOk()
+            ->assertJsonPath('level', 'confirmee');
+
+        $after = $this->getJson("/api/programs/{$id}")->json('sessions');
+        $this->assertSame(
+            array_map(fn ($s) => [$s['planned_date'], $s['type']], $before),
+            array_map(fn ($s) => [$s['planned_date'], $s['type']], $after),
+            'the plan in flight is untouched by a level edit',
+        );
+    }
+
     public function test_show_applies_the_cycle_adaptation_overlay_at_read_time(): void
     {
         $user = User::factory()->create(['birth_date' => '1994-06-15']);
@@ -161,11 +234,11 @@ class ProgramApiTest extends TestCase
 
         // first session falls in the menstrual window of the last logged cycle
         $sessionId = $this->getJson("/api/programs/{$programId}")->json('sessions.0.id');
-        $this->assertNull(\App\Models\TrainingSession::find($sessionId)->adaptation);
+        $this->assertNull(TrainingSession::find($sessionId)->adaptation);
 
         $this->patchJson("/api/training-sessions/{$sessionId}", ['status' => 'done'])->assertOk();
 
-        $frozen = \App\Models\TrainingSession::find($sessionId);
+        $frozen = TrainingSession::find($sessionId);
         $this->assertNotNull($frozen->adaptation);
         $this->assertSame('menstrual', $frozen->adaptation['phase']);
     }

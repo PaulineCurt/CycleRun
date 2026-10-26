@@ -16,8 +16,45 @@ final class Vdot
 {
     // VO2(v) = A + B·v + C·v²   (v in m/min)
     private const VO2_A = -4.60;
+
     private const VO2_B = 0.182258;
+
     private const VO2_C = 0.000104;
+
+    /**
+     * Aerobic cost of running at velocity `v` (m/min), in ml/kg/min.
+     */
+    public static function vo2AtVelocity(float $vMetersPerMin): float
+    {
+        return self::VO2_A + self::VO2_B * $vMetersPerMin + self::VO2_C * $vMetersPerMin ** 2;
+    }
+
+    /**
+     * Fraction of VO2max sustainable for an effort lasting `tMin` minutes — the
+     * D&G drop-off curve. Also used by FeasibilityChecker to estimate a 5 km time
+     * from a bare VMA, so the whole engine reads one curve.
+     */
+    public static function percentVo2maxForDuration(float $tMin): float
+    {
+        return 0.8
+            + 0.1894393 * exp(-0.012778 * $tMin)
+            + 0.2989558 * exp(-0.1932605 * $tMin);
+    }
+
+    /**
+     * Velocity (m/min) whose aerobic cost equals `$vo2` — positive root of
+     * VO2(v) = vo2. Shared by toVmaKmh() and the feasibility fixed-point.
+     */
+    public static function velocityForVo2(float $vo2): float
+    {
+        $a = self::VO2_C;
+        $b = self::VO2_B;
+        $c = self::VO2_A - $vo2;
+
+        $discriminant = $b ** 2 - 4 * $a * $c;
+
+        return (-$b + sqrt($discriminant)) / (2 * $a);
+    }
 
     /**
      * VDOT for a race performance.
@@ -31,13 +68,7 @@ final class Vdot
         $tMin = $timeS / 60.0;
         $velocity = $distanceM / $tMin; // m/min
 
-        $percentVo2max = 0.8
-            + 0.1894393 * exp(-0.012778 * $tMin)
-            + 0.2989558 * exp(-0.1932605 * $tMin);
-
-        $vo2 = self::VO2_A + self::VO2_B * $velocity + self::VO2_C * $velocity ** 2;
-
-        return $vo2 / $percentVo2max;
+        return self::vo2AtVelocity($velocity) / self::percentVo2maxForDuration($tMin);
     }
 
     /**
@@ -45,14 +76,6 @@ final class Vdot
      */
     public static function toVmaKmh(float $vdot): float
     {
-        // C·v² + B·v + (A − VDOT) = 0  →  positive root
-        $a = self::VO2_C;
-        $b = self::VO2_B;
-        $c = self::VO2_A - $vdot;
-
-        $discriminant = $b ** 2 - 4 * $a * $c;
-        $velocity = (-$b + sqrt($discriminant)) / (2 * $a); // m/min
-
-        return $velocity * 60 / 1000;
+        return self::velocityForVo2($vdot) * 60 / 1000;
     }
 }

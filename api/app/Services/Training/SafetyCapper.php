@@ -16,16 +16,17 @@ use App\Enums\SessionType;
  */
 final class SafetyCapper
 {
-    private const OVERLOAD_PROGRESSION = 1.10; // §4.5 / §8: >+10 %/week is flagged.
-
     /**
-     * @param list<SessionDraft> $sessions
-     * @param array<string, mixed> $healthFlags
-     * @param list<WeekBlock> $blocks
-     * @param array<string, array{0: int, 1: int}> $paces  so a downgraded session gets the right pace band
+     * @param  list<SessionDraft>  $sessions
+     * @param  array<string, mixed>  $healthFlags
+     * @param  list<WeekBlock>  $blocks
+     * @param  float  $overloadProgression  the level profile's weekly ceiling — the
+     *                                      overload check must read the SAME value the generator built with,
+     *                                      or the plan flags weeks its own builder produced (§4.2).
+     * @param  array<string, array{0: int, 1: int}>  $paces  so a downgraded session gets the right pace band
      * @return array{sessions: list<SessionDraft>, warnings: list<string>}
      */
-    public function apply(array $sessions, array $healthFlags, array $blocks, array $paces = []): array
+    public function apply(array $sessions, array $healthFlags, array $blocks, float $overloadProgression, array $paces = []): array
     {
         $warnings = [];
 
@@ -47,13 +48,13 @@ final class SafetyCapper
             }
         }
 
-        $warnings = array_merge($warnings, $this->overloadWarnings($blocks));
+        $warnings = array_merge($warnings, $this->overloadWarnings($blocks, $overloadProgression));
 
         return ['sessions' => array_values($sessions), 'warnings' => $warnings];
     }
 
     /**
-     * @param array<string, array{0: int, 1: int}> $paces
+     * @param  array<string, array{0: int, 1: int}>  $paces
      */
     private function downgradeIntensity(SessionDraft $session, array $paces): SessionDraft
     {
@@ -105,10 +106,10 @@ final class SafetyCapper
     }
 
     /**
-     * @param list<WeekBlock> $blocks
+     * @param  list<WeekBlock>  $blocks
      * @return list<string>
      */
-    private function overloadWarnings(array $blocks): array
+    private function overloadWarnings(array $blocks, float $overloadProgression): array
     {
         $warnings = [];
         $previous = null;
@@ -119,13 +120,15 @@ final class SafetyCapper
             // trough, so it breaks the comparison chain instead of feeding it.
             if ($block->isDeload || $block->mesocycle === Mesocycle::Taper) {
                 $previous = null;
+
                 continue;
             }
 
             if ($previous !== null && $previous > 0
-                && $block->totalVolumeMin > $previous * self::OVERLOAD_PROGRESSION + 0.5) {
+                && $block->totalVolumeMin > $previous * $overloadProgression + 0.5) {
                 $pct = (int) round(($block->totalVolumeMin / $previous - 1) * 100);
-                $warnings[] = "Semaine {$block->weekIndex} : progression de volume de +{$pct}% (au-delà du plafond +10%).";
+                $capPct = (int) round(($overloadProgression - 1) * 100);
+                $warnings[] = "Semaine {$block->weekIndex} : progression de volume de +{$pct}% (au-delà du plafond +{$capPct}%).";
             }
 
             $previous = $block->totalVolumeMin;

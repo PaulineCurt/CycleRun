@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Enums\Level;
 use App\Enums\Methodology;
 use App\Enums\ProgramStatus;
 use App\Models\Program;
 use App\Models\User;
+use App\Services\Training\VmaProvenance;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -111,5 +113,21 @@ class ProgramTest extends TestCase
 
         $this->assertNull($program->feasibility);
         $this->assertNull($program->warnings);
+    }
+
+    public function test_level_and_vma_source_cast_to_enums_and_are_nullable(): void
+    {
+        $plain = $this->makeProgram(User::factory()->create());
+        $plain->refresh();
+        $this->assertNull($plain->level);
+        $this->assertNull($plain->vma_source);
+
+        $tagged = $this->makeProgram(User::factory()->create(), [
+            'level' => Level::Confirmee,
+            'vma_source' => VmaProvenance::Declared,
+        ]);
+        $tagged->refresh();
+        $this->assertSame(Level::Confirmee, $tagged->level);
+        $this->assertSame(VmaProvenance::Declared, $tagged->vma_source);
     }
 }

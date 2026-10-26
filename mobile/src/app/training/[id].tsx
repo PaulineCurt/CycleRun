@@ -4,7 +4,9 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
   getProgram,
+  updateProgram,
   updateProgramStatus,
+  type Level,
   type ProgramDetail,
   type TrainingSession,
 } from "@/lib/api";
@@ -17,6 +19,7 @@ import { SessionCycleNote } from "@/components/SessionCycleNote";
 import { COLOR } from "@/lib/colors";
 import { toDateKey } from "@/lib/calendar";
 import {
+  LEVEL_LABEL,
   SESSION_ICON,
   SESSION_LABEL,
   describeLoad,
@@ -24,6 +27,8 @@ import {
   formatPaceRange,
   sessionAccent,
 } from "@/lib/training";
+
+const LEVELS: Level[] = ["debutante", "intermediaire", "confirmee"];
 
 const STATUS_BADGE_COLOR = COLOR.badge;
 
@@ -54,6 +59,7 @@ export default function ProgramPlan() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [activating, setActivating] = useState(false);
+  const [savingLevel, setSavingLevel] = useState(false);
 
   const load = useCallback(() => {
     setError(false);
@@ -76,6 +82,17 @@ export default function ProgramPlan() {
       load();
     } finally {
       setActivating(false);
+    }
+  }
+
+  async function changeLevel(next: Level) {
+    if (savingLevel || next === program?.level) return;
+    setSavingLevel(true);
+    try {
+      await updateProgram(programId, { level: next });
+      load();
+    } finally {
+      setSavingLevel(false);
     }
   }
 
@@ -109,6 +126,28 @@ export default function ProgramPlan() {
               </Text>
             );
           })()}
+
+          <View className="mb-6">
+            <Text className="mb-2 text-xs uppercase tracking-wide text-ink opacity-50">Niveau</Text>
+            <View className="flex-row gap-2">
+              {LEVELS.map((lvl) => (
+                <Pressable
+                  key={lvl}
+                  onPress={() => changeLevel(lvl)}
+                  disabled={savingLevel}
+                  className={`h-10 flex-1 items-center justify-center rounded-lg ${
+                    program.level === lvl ? "bg-accent" : "bg-surface"
+                  }`}
+                  accessibilityRole="button"
+                >
+                  <Text className="text-xs font-semibold text-ink">{LEVEL_LABEL[lvl]}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text className="mt-1.5 text-xs text-ink opacity-50">
+              Ajuster le niveau ne régénère pas le plan en cours.
+            </Text>
+          </View>
 
           {program.feasibility?.alert && (
             <View className="mb-4 flex-row items-start rounded-2xl bg-danger/10 p-4">

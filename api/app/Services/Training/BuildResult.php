@@ -2,6 +2,8 @@
 
 namespace App\Services\Training;
 
+use App\Enums\Level;
+
 /**
  * Output of buildProgram(): a full plan that is valid without ever having touched
  * the cycle (§1/§5 moteurB.md). The cycle adaptation layer (B4) is applied later,
@@ -10,9 +12,9 @@ namespace App\Services\Training;
 final readonly class BuildResult
 {
     /**
-     * @param list<WeekBlock> $blocks
-     * @param list<SessionDraft> $sessions
-     * @param list<string> $warnings
+     * @param  list<WeekBlock>  $blocks
+     * @param  list<SessionDraft>  $sessions
+     * @param  list<string>  $warnings
      */
     public function __construct(
         public NormalizedLevel $level,
@@ -21,8 +23,8 @@ final readonly class BuildResult
         public array $blocks,
         public array $sessions,
         public array $warnings,
-    ) {
-    }
+        public Level $declaredLevel,
+    ) {}
 
     /**
      * Stable fingerprint of the generated plan — same params must yield the same
@@ -33,6 +35,7 @@ final readonly class BuildResult
         $payload = array_map(fn (SessionDraft $s) => $s->toArray(), $this->sessions);
 
         return hash('sha256', json_encode([
+            'level' => $this->declaredLevel->value,
             'track' => $this->track->value,
             'sessions' => $payload,
         ], JSON_THROW_ON_ERROR));

@@ -6,29 +6,29 @@ namespace App\Services\Training;
  * Step 4 of the pipeline (§5): buildPeriodization(weeks, days_per_week) -> weekly
  * blocks with a volume target and an easy/hard split.
  *
- * Encodes §4.5: base → development → taper mesocycles, +10 %/week volume ceiling,
- * a deload every 4th week (−35 %), and a 1–2 week taper. All constants are
- * provisional and are the priority item for coach (FFA) review.
+ * Encodes §4.5: base → development → taper mesocycles, a per-level weekly volume
+ * ceiling, a per-level deload cadence, and a 1–2 week taper. The volume /
+ * progression / deload numbers now come from the injected LevelProfile (§4.2) —
+ * the priority item for coach (FFA) review lives in LevelProfiles.
  */
 final class Periodizer
 {
-    private const MINUTES_PER_SESSION_START = 25;   // week-0 session length. TODO(expert).
-    private const WEEKLY_PROGRESSION = 1.10;         // §4.5 ceiling.
-    private const DELOAD_EVERY = 4;                  // §4.5: every 3–4 weeks.
-    private const DELOAD_FACTOR = 0.65;              // §4.5: −30..−40 %.
-    private const SESSION_MINUTES_CAP = 75;          // avg minutes/session hard cap. TODO(expert).
-    private const BASE_SHARE = 0.45;                 // fraction of working weeks spent in base.
     private const BASE_HARD_RATIO = 0.05;            // strides only during base.
+
     private const DEV_HARD_RATIO_START = 0.12;
+
     private const DEV_HARD_RATIO_END = 0.20;         // the "20" of 80/20 (§4.4).
+
     private const TAPER_HARD_RATIO = 0.15;
+
     private const TAPER_VOLUME_START = 0.60;         // fraction of peak on first taper week.
+
     private const TAPER_VOLUME_STEP = 0.15;          // shed per further taper week.
 
     /**
      * @return list<WeekBlock>
      */
-    public function build(int $weeks, int $daysPerWeek, Track $track): array
+    public function build(int $weeks, int $daysPerWeek, Track $track, LevelProfile $profile): array
     {
         if ($weeks < 1 || $daysPerWeek < 1) {
             throw new \InvalidArgumentException('weeks and days_per_week must be positive');
@@ -36,12 +36,12 @@ final class Periodizer
 
         $taperWeeks = $this->taperWeeks($weeks);
         $workingWeeks = $weeks - $taperWeeks;
-        $baseWeeks = max(1, (int) ceil($workingWeeks * self::BASE_SHARE));
+        $baseWeeks = max(1, (int) ceil($workingWeeks * $profile->baseShare));
         $baseWeeks = min($baseWeeks, $workingWeeks);
         $developmentWeeks = $workingWeeks - $baseWeeks;
 
-        $startWeekly = $daysPerWeek * self::MINUTES_PER_SESSION_START;
-        $volumeCap = $daysPerWeek * self::SESSION_MINUTES_CAP;
+        $startWeekly = $daysPerWeek * $profile->minutesPerSessionStart;
+        $volumeCap = $daysPerWeek * $profile->sessionMinutesCap;
 
         $blocks = [];
         $progressionStep = 0;
@@ -49,13 +49,13 @@ final class Periodizer
         $peakVolume = $startWeekly;
 
         for ($i = 0; $i < $workingWeeks; $i++) {
-            $isDeload = $this->isDeloadWeek($i, $workingWeeks);
+            $isDeload = $this->isDeloadWeek($i, $workingWeeks, $profile->deloadEvery);
             $mesocycle = $i < $baseWeeks ? Mesocycle::Base : Mesocycle::Development;
 
             if ($isDeload) {
-                $volume = (int) round($lastVolume * self::DELOAD_FACTOR);
+                $volume = (int) round($lastVolume * $profile->deloadFactor);
             } else {
-                $volume = (int) round(min($startWeekly * self::WEEKLY_PROGRESSION ** $progressionStep, $volumeCap));
+                $volume = (int) round(min($startWeekly * $profile->weeklyProgression ** $progressionStep, $volumeCap));
                 $progressionStep++;
                 $lastVolume = $volume;
                 $peakVolume = max($peakVolume, $volume);
@@ -83,11 +83,11 @@ final class Periodizer
         };
     }
 
-    private function isDeloadWeek(int $weekIndex, int $workingWeeks): bool
+    private function isDeloadWeek(int $weekIndex, int $workingWeeks, int $deloadEvery): bool
     {
-        // Every 4th week, but never week 0 and never the last working week
-        // (that one flows into the taper).
-        return ($weekIndex + 1) % self::DELOAD_EVERY === 0
+        // Every Nth week (N from the level profile), but never week 0 and never the
+        // last working week (that one flows into the taper).
+        return ($weekIndex + 1) % $deloadEvery === 0
             && $weekIndex !== 0
             && $weekIndex !== $workingWeeks - 1;
     }

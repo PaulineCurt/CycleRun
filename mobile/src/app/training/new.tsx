@@ -1,13 +1,18 @@
 import { useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
-import { createProgram, type LevelInput } from "@/lib/api";
+import { createProgram, type Level, type LevelInput } from "@/lib/api";
 import { toDateKey } from "@/lib/calendar";
+import { checkLevelCoherence } from "@/lib/levelCoherence";
+import { LEVEL_LABEL } from "@/lib/training";
 import { DatePickerCalendar } from "@/components/DatePickerCalendar";
 import { ChoiceStep, ConfirmStep, WizardProgress } from "@/components/WizardStep";
 
-const STEPS = ["level", "cadence", "duration", "start", "goal"] as const;
-type Step = (typeof STEPS)[number];
+// A débutante ends stage 1 with no pace test; everyone else goes through stage 2
+// (cran + optional pace anchor). Wording is a placeholder — produit à finaliser.
+const STEPS_BEGINNER = ["experience", "cadence", "duration", "start", "goal"] as const;
+const STEPS_EXPERIENCED = ["experience", "cadence", "stage2", "duration", "start", "goal"] as const;
+type Step = (typeof STEPS_EXPERIENCED)[number];
 
 type Method = "vma" | "race";
 const RACE_DISTANCES: [string, number][] = [
@@ -29,13 +34,14 @@ function parseClock(input: string): number | null {
 
 export default function NewProgram() {
   const router = useRouter();
-  const [step, setStep] = useState<Step>("level");
+  const [step, setStep] = useState<Step>("experience");
 
+  const [level, setLevel] = useState<Level>("intermediaire");
   const [method, setMethod] = useState<Method>("vma");
   const [vma, setVma] = useState("");
   const [raceDistance, setRaceDistance] = useState(5000);
   const [raceTime, setRaceTime] = useState("");
-  const [levelError, setLevelError] = useState<string | null>(null);
+  const [coherenceDismissed, setCoherenceDismissed] = useState(false);
 
   const [daysPerWeek, setDaysPerWeek] = useState(3);
   const [durationWeeks, setDurationWeeks] = useState(12);
@@ -45,12 +51,16 @@ export default function NewProgram() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  const steps = level === "debutante" ? STEPS_BEGINNER : STEPS_EXPERIENCED;
+
   function goBack() {
-    const i = STEPS.indexOf(step);
-    setStep(STEPS[Math.max(0, i - 1)]);
+    const i = (steps as readonly string[]).indexOf(step);
+    setStep(steps[Math.max(0, i - 1)] as Step);
   }
 
+  /** Optional now: a débutante — or anyone skipping the anchor — has no level_input. */
   function buildLevelInput(): LevelInput | null {
+    if (level === "debutante") return null;
     if (method === "vma") {
       const value = Number(vma.trim().replace(",", "."));
       if (!Number.isFinite(value) || value < 6 || value > 25) return null;
@@ -61,32 +71,32 @@ export default function NewProgram() {
     return { kind: "race_result", distance_m: raceDistance, time_s: seconds };
   }
 
-  function handleLevelContinue() {
-    setLevelError(null);
-    if (buildLevelInput() === null) {
-      setLevelError(
-        method === "vma"
-          ? "Entre une VMA plausible (entre 6 et 25 km/h)."
-          : "Entre un temps valide, au format mm:ss.",
-      );
-      return;
-    }
+  const anchorVma =
+    method === "vma" ? Number(vma.trim().replace(",", ".")) : NaN;
+  const coherence = coherenceDismissed
+    ? null
+    : checkLevelCoherence(level, Number.isFinite(anchorVma) ? anchorVma : null, daysPerWeek);
+
+  function chooseExperience(next: Level) {
+    setLevel(next);
+    setCoherenceDismissed(false);
     setStep("cadence");
   }
 
   async function handleFinish({ skipGoal = false } = {}) {
     setSubmitError(null);
-    const levelInput = buildLevelInput();
-    if (levelInput === null || startDate === null) {
+    if (startDate === null) {
       setSubmitError("Il manque une information pour générer le plan.");
       return;
     }
 
+    const levelInput = buildLevelInput();
     const goalSeconds = skipGoal ? null : parseClock(goalTime);
     setSubmitting(true);
     try {
       const program = await createProgram({
-        level_input: levelInput,
+        level,
+        level_input: levelInput ?? undefined,
         goal_time_s: goalSeconds ?? undefined,
         duration_weeks: durationWeeks,
         days_per_week: daysPerWeek,
@@ -103,7 +113,7 @@ export default function NewProgram() {
   return (
     <ScrollView className="flex-1 bg-bg" contentContainerClassName="flex-grow px-6 pb-8 pt-16">
       <View className="flex-1">
-        {step !== "level" ? (
+        {step !== "experience" ? (
           <Pressable onPress={goBack} className="mb-2 h-11 justify-center">
             <Text className="text-ink opacity-70">‹ Retour</Text>
           </Pressable>
@@ -113,16 +123,91 @@ export default function NewProgram() {
           </Pressable>
         )}
 
-        <WizardProgress current={STEPS.indexOf(step)} total={STEPS.length} />
+        <WizardProgress current={(steps as readonly string[]).indexOf(step)} total={steps.length} />
 
-        {step === "level" && (
+        {step === "experience" && (
+          <ChoiceStep
+            title="Tu cours en ce moment ?"
+            description="On adapte le point de départ du plan à ton niveau réel."
+          >
+            {(
+              [
+                ["debutante", "Je débute", "Pas ou peu de course ces derniers mois"],
+                ["intermediaire", "Un peu", "Quelques sorties par semaine, sans plan"],
+                ["confirmee", "Régulièrement", "Entraînement suivi, plusieurs séances/semaine"],
+              ] as [Level, string, string][]
+            ).map(([value, label, hint]) => (
+              <Pressable
+                key={value}
+                onPress={() => chooseExperience(value)}
+                className="rounded-lg bg-surface px-4 py-3"
+                accessibilityRole="button"
+              >
+                <Text className="font-semibold text-ink">{label}</Text>
+                <Text className="mt-0.5 text-xs text-ink opacity-60">{hint}</Text>
+              </Pressable>
+            ))}
+          </ChoiceStep>
+        )}
+
+        {step === "cadence" && (
+          <ChoiceStep
+            title="Combien de séances par semaine ?"
+            description="Sois réaliste sur ce que tu peux tenir sur toute la durée du plan."
+          >
+            {[2, 3, 4].map((n) => (
+              <Pressable
+                key={n}
+                onPress={() => {
+                  setDaysPerWeek(n);
+                  setStep(level === "debutante" ? "duration" : "stage2");
+                }}
+                className="h-11 items-center justify-center rounded-lg bg-surface"
+                accessibilityRole="button"
+              >
+                <Text className="font-semibold text-ink">{n} séances</Text>
+              </Pressable>
+            ))}
+          </ChoiceStep>
+        )}
+
+        {step === "stage2" && (
           <ConfirmStep
-            title="Quel est ton niveau actuel ?"
-            description="On en déduit tes allures d'entraînement. Choisis ce que tu connais."
+            title="Précise ton niveau"
+            description="Choisis ton cran, et ajoute un repère d'allure si tu en as un (facultatif)."
             primaryLabel="Continuer"
-            onPrimary={handleLevelContinue}
+            onPrimary={() => setStep("duration")}
+            secondaryLabel="Sans repère d'allure"
+            onSecondary={() => {
+              setVma("");
+              setRaceTime("");
+              setStep("duration");
+            }}
           >
             <View className="mb-4 flex-row gap-2">
+              {(
+                [
+                  ["intermediaire", LEVEL_LABEL.intermediaire],
+                  ["confirmee", LEVEL_LABEL.confirmee],
+                ] as [Level, string][]
+              ).map(([value, label]) => (
+                <Pressable
+                  key={value}
+                  onPress={() => {
+                    setLevel(value);
+                    setCoherenceDismissed(false);
+                  }}
+                  className={`h-11 flex-1 items-center justify-center rounded-lg ${
+                    level === value ? "bg-accent" : "bg-surface"
+                  }`}
+                  accessibilityRole="button"
+                >
+                  <Text className="font-semibold text-ink">{label}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View className="mb-3 flex-row gap-2">
               {(
                 [
                   ["vma", "Ma VMA"],
@@ -176,29 +261,34 @@ export default function NewProgram() {
                 />
               </View>
             )}
-            {levelError && <Text className="mt-2 text-danger">{levelError}</Text>}
-          </ConfirmStep>
-        )}
 
-        {step === "cadence" && (
-          <ChoiceStep
-            title="Combien de séances par semaine ?"
-            description="Sois réaliste sur ce que tu peux tenir sur toute la durée du plan."
-          >
-            {[2, 3, 4].map((n) => (
-              <Pressable
-                key={n}
-                onPress={() => {
-                  setDaysPerWeek(n);
-                  setStep("duration");
-                }}
-                className="h-11 items-center justify-center rounded-lg bg-surface"
-                accessibilityRole="button"
-              >
-                <Text className="font-semibold text-ink">{n} séances</Text>
-              </Pressable>
-            ))}
-          </ChoiceStep>
+            {coherence && (
+              <View className="mt-4 rounded-2xl bg-surface p-4">
+                <Text className="text-sm text-ink opacity-80">{coherence.message}</Text>
+                <View className="mt-3 flex-row gap-2">
+                  <Pressable
+                    onPress={() => {
+                      setLevel(coherence.suggested);
+                      setCoherenceDismissed(true);
+                    }}
+                    className="h-10 flex-1 items-center justify-center rounded-lg bg-accent"
+                    accessibilityRole="button"
+                  >
+                    <Text className="text-sm font-semibold text-ink">
+                      Passer en {LEVEL_LABEL[coherence.suggested].toLowerCase()}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setCoherenceDismissed(true)}
+                    className="h-10 flex-1 items-center justify-center rounded-lg bg-ink/6"
+                    accessibilityRole="button"
+                  >
+                    <Text className="text-sm text-ink opacity-70">Garder mon choix</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+          </ConfirmStep>
         )}
 
         {step === "duration" && (

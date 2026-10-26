@@ -2,21 +2,32 @@
 
 namespace App\Services\Training;
 
+use App\Enums\Level;
+
 /**
- * Step 1 of the pipeline (§5): normalizeLevel(level_input) -> { vma, paces{} }.
+ * Step 1 of the pipeline (§5): normalizeLevel(level, level_input) -> { vma, paces{} }.
  *
- * Pure. Accepts the raw level_input recorded on the program and resolves it to a
- * single VMA plus a full pace table. VDOT is an import path only (decision #1).
+ * Pure. Resolves the declared level plus the (optional) raw level_input to a
+ * single VMA, a full pace table and a provenance marker (§6). VDOT is an import
+ * path only (decision #1).
  */
 final class LevelNormalizer
 {
-    public function normalize(array $levelInput): NormalizedLevel
+    /**
+     * @param  array<string, mixed>|null  $levelInput  null when no anchor was given
+     *                                                 (débutante, end of stage 1)
+     */
+    public function normalize(Level $level, ?array $levelInput): NormalizedLevel
     {
+        if ($levelInput === null) {
+            return $this->fromProfile($level);
+        }
+
         $kind = $levelInput['kind'] ?? null;
 
         return match ($kind) {
-            'field_test' => $this->fromFieldTest($levelInput),
-            'race_result' => $this->fromRaceResult($levelInput),
+            'field_test' => $this->fromFieldTest($level, $levelInput),
+            'race_result' => $this->fromRaceResult($level, $levelInput),
             default => throw new \InvalidArgumentException('unknown level_input kind: '.var_export($kind, true)),
         };
     }
@@ -43,7 +54,29 @@ final class LevelNormalizer
         return $table;
     }
 
-    private function fromFieldTest(array $input): NormalizedLevel
+    /**
+     * No test given: seed the VMA from the level profile and hide the pace table
+     * (empty => paceFor() yields [null, null], so course/marche sessions carry no
+     * min/km band — the beginner runs on effort).
+     */
+    private function fromProfile(Level $level): NormalizedLevel
+    {
+        return new NormalizedLevel(
+            vmaKmh: LevelProfiles::for($level)->defaultVmaKmh,
+            vdot: null,
+            source: LevelSource::Profile,
+            referenceDistanceM: null,
+            referenceTimeS: null,
+            paces: [],
+            level: $level,
+            vmaProvenance: VmaProvenance::Default,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $input
+     */
+    private function fromFieldTest(Level $level, array $input): NormalizedLevel
     {
         if (isset($input['vma_kmh'])) {
             $vma = (float) $input['vma_kmh'];
@@ -65,10 +98,15 @@ final class LevelNormalizer
             referenceDistanceM: null,
             referenceTimeS: null,
             paces: $this->paces($vma),
+            level: $level,
+            vmaProvenance: VmaProvenance::Declared,
         );
     }
 
-    private function fromRaceResult(array $input): NormalizedLevel
+    /**
+     * @param  array<string, mixed>  $input
+     */
+    private function fromRaceResult(Level $level, array $input): NormalizedLevel
     {
         $distanceM = (int) ($input['distance_m'] ?? 0);
         $timeS = (int) ($input['time_s'] ?? 0);
@@ -87,6 +125,8 @@ final class LevelNormalizer
             referenceDistanceM: $distanceM,
             referenceTimeS: $timeS,
             paces: $this->paces($vma),
+            level: $level,
+            vmaProvenance: VmaProvenance::Declared,
         );
     }
 }
