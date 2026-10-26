@@ -58,4 +58,28 @@ class VdotTest extends TestCase
 
         Vdot::fromRace(5000, 0);
     }
+
+    public function test_vo2_at_velocity_and_its_inverse_round_trip(): void
+    {
+        $v = 233.333; // m/min ≈ VMA 14 km/h
+        $vo2 = Vdot::vo2AtVelocity($v);
+
+        $this->assertEqualsWithDelta(43.6, $vo2, 0.5);
+        $this->assertEqualsWithDelta($v, Vdot::velocityForVo2($vo2), 0.01);
+    }
+
+    public function test_percent_vo2max_curve_decreases_with_effort_duration(): void
+    {
+        $short = Vdot::percentVo2maxForDuration(6);   // ~6 min all-out
+        $mid = Vdot::percentVo2maxForDuration(22);    // ~5 km
+        $long = Vdot::percentVo2maxForDuration(60);   // ~1 h
+
+        $this->assertGreaterThan($mid, $short);
+        $this->assertGreaterThan($long, $mid);
+        // sane bounds: the fitted D&G curve can sit just above 1 for a short
+        // all-out effort, and asymptotes down toward 0.8.
+        $this->assertLessThan(1.15, $short);
+        $this->assertGreaterThan(0.8, $long);
+        $this->assertLessThan(0.95, $mid);
+    }
 }
