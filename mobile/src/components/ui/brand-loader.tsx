@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { Animated, Easing, View } from "react-native";
 import { PHASE_ORDER } from "@/lib/phase";
 import { COLOR } from "@/lib/colors";
@@ -12,7 +12,7 @@ const PHASE_COLORS = PHASE_ORDER.map((phase) => COLOR.phase[phase]);
 
 /** On-brand loading spinner: the cycle ring, rotating — used instead of a generic spinner. */
 export function BrandLoader() {
-  const rotation = useRef(new Animated.Value(0)).current;
+  const [rotation] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     const loop = Animated.loop(

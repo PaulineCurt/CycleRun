@@ -50,6 +50,8 @@ export function CycleCalendarView({
   const lastTap = useRef<{ key: string; time: number } | null>(null);
 
   function handlePress(date: Date, dateKey: string, info: CalendarDay | undefined) {
+    // Tap handler, not render — the purity rule can't tell a nested function apart.
+    // eslint-disable-next-line react-hooks/purity
     const now = Date.now();
     const previous = lastTap.current;
 

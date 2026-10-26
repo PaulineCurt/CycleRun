@@ -1,5 +1,5 @@
 import { useCallback, useRef } from "react";
-import type { ScrollView } from "react-native";
+import type { ScrollViewInstance } from "react-native";
 import { useFocusEffect } from "expo-router";
 
 /**
@@ -8,7 +8,7 @@ import { useFocusEffect } from "expo-router";
  * pushed on top of one) should feel like arriving fresh, not resuming mid-scroll.
  */
 export function useScrollToTopOnFocus() {
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
 
   useFocusEffect(
     useCallback(() => {

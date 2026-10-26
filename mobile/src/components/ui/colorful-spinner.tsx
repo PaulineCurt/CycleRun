@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { Animated, Easing, View } from "react-native";
 import { COLOR } from "@/lib/colors";
 
@@ -24,7 +24,7 @@ const BAR_COLORS = [
  * exact page-loading motif there read as "the whole page is reloading").
  */
 export function ColorfulSpinner() {
-  const rotation = useRef(new Animated.Value(0)).current;
+  const [rotation] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     const loop = Animated.loop(
